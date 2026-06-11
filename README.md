@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Ratel Skills</h1>
-  <h4>Five Claude Code / Cursor / Codex skills for partner-engagement work on AI agent codebases — assess, instrument, design dashboards, integrate Ratel, analyse traces.</h4>
+  <h4>Claude Code / Cursor / Codex skills to work on and improve AI agent codebases.</h4>
 
   <p>
     <a href="https://github.com/ratel-ai/ratel">Ratel</a> •
