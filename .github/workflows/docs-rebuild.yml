@@ -1,0 +1,36 @@
+# Rebuild docs.ratel.sh when this README changes — it's synced into the docs site
+# (ratel-ai/ratel-websites generates /docs/skills from this README at build time).
+#
+# One-time setup:
+#   1. Vercel → docs project → Settings → Git → Deploy Hooks → create one (branch: main).
+#   2. Add the URL as a repo secret VERCEL_DOCS_DEPLOY_HOOK
+#      (Settings → Secrets and variables → Actions).
+# Until the secret exists this job no-ops (it does not fail).
+name: Docs rebuild
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger docs.ratel.sh deploy
+        env:
+          HOOK: ${{ secrets.VERCEL_DOCS_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::VERCEL_DOCS_DEPLOY_HOOK not set — skipping docs rebuild."
+            exit 0
+          fi
+          echo "Triggering docs.ratel.sh rebuild…"
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "Done."
