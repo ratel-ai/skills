@@ -18,10 +18,10 @@
 ## Install
 
 ```bash
-npx skills add ratel-ai/skills -y -g
+npx skills add ratel-ai/skills -y --all
 ```
 
-That installs all five skills globally (into `~/.claude/skills/` for Claude Code, the equivalent location for other supported agents). The `-y` flag accepts all prompts; `-g` installs globally rather than into the current project.
+That installs all five skills globally (into `~/.claude/skills/` for Claude Code, the equivalent location for other supported agents). The `-y` flag accepts all prompts; `--all` installs all skills into all agents.
 
 Per-skill install:
 
@@ -46,7 +46,7 @@ report so we can see what's weak and where Ratel would help.
 
 Step 1 — install the Ratel skills suite:
 
-  npx skills add ratel-ai/skills -y -g
+  npx skills add ratel-ai/skills -y -all
 
 Step 2 — run the `ratel-assessment` skill on this repository. It
 will produce a markdown report at `docs/ratel-assessment-<date>.md`
