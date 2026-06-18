@@ -2,13 +2,14 @@
 
 The per-mode and per-framework code shapes for wiring Ratel into an agent. Read this **after** Step 3 of the skill — i.e., after you have the up-to-date docs in hand. If anything here disagrees with the latest docs, trust the docs and flag this file for an update.
 
-Public Ratel surface (as of v0.1.5):
+Public Ratel surface (as of v0.1.6):
 
-- TS SDK: `@ratel-ai/sdk` — `ToolCatalog`, `searchToolsTool`, `invokeToolTool`, `registerMcpServer`
+- TS SDK: `@ratel-ai/sdk` — `ToolCatalog`, `SkillCatalog`, `searchCapabilitiesTool`, `invokeToolTool`, `getSkillContentTool`, `registerMcpServer`
+- Python SDK: `ratel-ai` (`pip install ratel-ai`, shipped at full parity) — `ToolCatalog`, `SkillCatalog`, `Skill`, `search_capabilities_tool`, `invoke_tool_tool`, `get_skill_content_tool`, `register_mcp_server`. (Package is `ratel-ai`, not `ratel`.)
 - CLI: `@ratel-ai/cli` — `ratel serve`, `ratel mcp add | list | edit`, `ratel inspect`
-- MCP server: `@ratel-ai/mcp-server` (also published as `ratel-mcp`) — exposes `search_tools` and `invoke_tool` to any MCP client
+- MCP server: `@ratel-ai/mcp-server` (also published as `ratel-mcp`) — exposes the unified `search_capabilities`, `invoke_tool`, and `get_skill_content` to any MCP client. (`search_tools` remains as a deprecated tools-only shim; prefer `search_capabilities`.)
 
-A Python SDK is on the v0.5.x roadmap; before it ships, Python customers integrate by running `ratel serve` as an MCP gateway and pointing their MCP-aware agent at it.
+`search_capabilities(query, topKTools?, topKSkills?)` returns `{ tools: { groups }, skills: [...] }` — two independently-ranked BM25 buckets. `get_skill_content(skillId)` returns `{ body }`; skills are read, not executed.
 
 ## Mode 1 — Direct SDK (TypeScript)
 
@@ -20,7 +21,7 @@ Best when:
 Shape:
 
 ```ts
-import { ToolCatalog, searchToolsTool, invokeToolTool } from "@ratel-ai/sdk";
+import { ToolCatalog, SkillCatalog, searchCapabilitiesTool, invokeToolTool, getSkillContentTool } from "@ratel-ai/sdk";
 
 // 1. Build the catalog once at process start.
 const catalog = new ToolCatalog({
@@ -45,14 +46,30 @@ const hits = catalog.search(currentUserMessage, /* topK = */ 8, "direct");
 const filteredTools = hits.flatMap(({ toolId }) => catalogTools.filter(t => t.id === toolId));
 const result = await generateText({ model, tools: filteredTools, /* ... */ });
 
-// 3b. Gateway-mode: expose `search_tools` and `invoke_tool` so the agent can reach more on demand.
+// 3b. Gateway-mode: expose `search_capabilities` and `invoke_tool` so the agent can reach more on demand.
 const result = await generateText({
   model,
-  tools: { search_tools: searchToolsTool(catalog), invoke_tool: invokeToolTool(catalog) },
+  tools: { search_capabilities: searchCapabilitiesTool(catalog), invoke_tool: invokeToolTool(catalog) },
 });
 ```
 
+Python is the same shape (`ratel-ai`, full parity):
+
+```python
+from ratel_ai import ToolCatalog, SkillCatalog, search_capabilities_tool, invoke_tool_tool, get_skill_content_tool
+
+catalog = ToolCatalog(trace={"kind": "jsonl", "session_id": os.environ.get("SESSION_ID", "boot"), "path": "..."})
+for tool in all_tools:
+    catalog.register(id=tool.id, name=tool.name, description=tool.description,
+                     input_schema=tool.input_schema, output_schema=tool.output_schema, execute=tool.run)
+
+# Gateway-mode tools to expose to the agent:
+tools = {"search_capabilities": search_capabilities_tool(catalog), "invoke_tool": invoke_tool_tool(catalog)}
+```
+
 For most pilots, use **replace-mode with topK=8** as the default. Gateway mode is more powerful but adds an extra model turn per discovery.
+
+If the customer also ships playbook-style skills, register a `SkillCatalog` alongside the `ToolCatalog`: skills are indexed on name/description/tags and surfaced via the `search_capabilities` skills bucket, then read on demand with `getSkillContentTool` / `get_skill_content_tool` (`get_skill_content(skillId) → { body }`). Skills are loaded, not executed — there is no `invoke_skill`.
 
 ### Vercel AI SDK specifics
 
@@ -67,7 +84,7 @@ Same shape — register tools into the catalog instead of (or in addition to) Ma
 Best when:
 - The customer's agent already speaks MCP (Claude Desktop, Cursor, Goose, custom MCP client).
 - Tools come from one or more MCP upstream servers and the customer wants Ratel in front of them.
-- The agent process is Python and the Python SDK hasn't shipped yet.
+- The customer prefers an out-of-process gateway over importing the SDK (note: a Python SDK is now shipped, so Python is no longer forced into this mode — see Mode 1).
 
 Setup steps for the plan:
 
@@ -77,11 +94,11 @@ Setup steps for the plan:
 4. **Auth (if needed)**: for SSE/HTTP upstreams that use OAuth, run `ratel mcp auth <name>` once per upstream — Ratel handles refresh and re-auth after that.
 5. **Trace stream**: by default lands in `~/.ratel/telemetry/<project-slug>/<session-id>.jsonl`. Wire the forwarder from [`ratel-langfuse-instrument/references/ratel-hooks.md`](../../ratel-langfuse-instrument/references/ratel-hooks.md) to push to Langfuse, or wait for the native Langfuse sink.
 
-The agent only sees Ratel's two gateway tools (`search_tools`, `invoke_tool`). To use a tool, it calls `search_tools` first and then `invoke_tool` with the returned id. This is the most token-efficient mode at very large catalogs but requires the agent to handle the discovery step.
+The agent sees Ratel's unified gateway tools (`search_capabilities`, `invoke_tool`, and `get_skill_content` when skills are registered). To use a tool, it calls `search_capabilities` first and then `invoke_tool` with the returned id. This is the most token-efficient mode at very large catalogs but requires the agent to handle the discovery step.
 
 ### Python specifics
 
-Until the Python SDK ships, Python integrations are MCP-gateway mode by definition. For LangChain / LlamaIndex / direct-SDK agents, install an MCP client (e.g., `mcp` from PyPI) and configure it to talk to `ratel serve`. For LangGraph / CrewAI agents, the same MCP client wraps the agent's tool node.
+Python can integrate directly via the shipped `ratel-ai` SDK (Mode 1) or via the MCP gateway. For the gateway path with LangChain / LlamaIndex agents, install an MCP client (e.g., `mcp` from PyPI) and configure it to talk to `ratel serve`. For LangGraph / CrewAI agents, the same MCP client wraps the agent's tool node.
 
 ## Mode 3 — Hybrid
 
@@ -93,7 +110,7 @@ Shape:
 
 1. Register the local tools into a `ToolCatalog` via the direct SDK (Mode 1).
 2. Use `registerMcpServer(catalog, { name, transport })` to ingest each MCP upstream into the **same** catalog. Tools land with the `upstream__` prefix.
-3. Expose `searchToolsTool(catalog)` + `invokeToolTool(catalog)` to the agent. Search ranks across local and upstream uniformly; invocation routes to the right executor automatically.
+3. Expose `searchCapabilitiesTool(catalog)` + `invokeToolTool(catalog)` to the agent (add `getSkillContentTool(catalog)` if a `SkillCatalog` is also registered). Search ranks across local and upstream uniformly; invocation routes to the right executor automatically.
 
 This mode is exactly Mode 1 plus `registerMcpServer` calls. Don't dual-instantiate.
 
@@ -106,17 +123,17 @@ This mode is exactly Mode 1 plus `registerMcpServer` calls. Don't dual-instantia
 
 ### LangChain (Python)
 
-- Pre-filter at the agent constructor (`AgentExecutor(tools=...)`). Until the Python SDK ships, use Mode 2 (MCP gateway) and have LangChain talk MCP.
-- If using Mode 2, the agent gets `search_tools` and `invoke_tool` as plain tools; document this in the plan since LangChain users don't expect two-step tool calling.
+- Pre-filter at the agent constructor (`AgentExecutor(tools=...)`) using the shipped `ratel-ai` SDK (Mode 1), or use Mode 2 (MCP gateway) and have LangChain talk MCP.
+- If using Mode 2, the agent gets `search_capabilities` and `invoke_tool` as plain tools; document this in the plan since LangChain users don't expect two-step tool calling.
 
 ### LangGraph
 
-- The tool node is where the tools list lives. Mode 2 wraps the tool node with an MCP client; Mode 1 (when Python SDK ships) replaces the node's tools with the catalog's search results.
+- The tool node is where the tools list lives. Mode 2 wraps the tool node with an MCP client; Mode 1 (via the shipped `ratel-ai` SDK) replaces the node's tools with the catalog's search results.
 - Multi-agent graphs: the catalog should be **shared** across nodes (same in-process instance for Mode 1; same `ratel serve` for Mode 2). Per-node catalogs defeat the point.
 
 ### CrewAI
 
-- Per-agent tool lists in CrewAI map to per-agent catalogs in Mode 1 (when available). For now, Mode 2 with `ratel serve` works — each agent runs its own MCP client against the same gateway.
+- Per-agent tool lists in CrewAI map to per-agent catalogs in Mode 1 (now available via the shipped `ratel-ai` SDK). Mode 2 with `ratel serve` also works — each agent runs its own MCP client against the same gateway.
 
 ### Custom agent loops (no framework)
 

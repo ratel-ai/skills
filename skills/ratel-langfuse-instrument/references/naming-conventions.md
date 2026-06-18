@@ -42,14 +42,16 @@ tool.<tool-id>
 
 Where `<tool-id>` is the **stable id** the agent framework uses, not the friendly label. For MCP tools, include the upstream namespace: `tool.upstream__filesystem__read_file`.
 
-When Ratel is present and the agent calls Ratel's gateway tools:
+When Ratel is present and the agent calls Ratel's unified gateway tools:
 
 ```
-ratel.search_tools
+ratel.search_capabilities
 ratel.invoke_tool
+ratel.skill_search
+ratel.get_skill_content
 ```
 
-These are special and treated separately in the Ratel hooks reference.
+These are special and treated separately in the Ratel hooks reference. `ratel.skill_search` and `ratel.get_skill_content` cover first-class skills (loaded, not executed — there is no `invoke_skill`). The `metadata.gateway_origin` key maps the core's underlying `origin` field (`direct | agent`).
 
 ### Model observations (`type: generation`)
 

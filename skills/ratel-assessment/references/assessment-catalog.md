@@ -1,6 +1,6 @@
 # Assessment catalog
 
-Ten dimensions. For each: what it covers, how to score it, the concrete findings that surface under it, and the Ratel angle where one exists.
+Twelve dimensions. For each: what it covers, how to score it, the concrete findings that surface under it, and the Ratel angle where one exists.
 
 **Ratel angles point to entries in [`../../ratel-langfuse-dashboards/references/ratel-value-map.md`](../../ratel-langfuse-dashboards/references/ratel-value-map.md)** — that file is the single source of truth for "what Ratel ships when." Do not invent angles here; if a finding feels Ratel-relevant but doesn't match a value-map entry, leave the Ratel angle off.
 
@@ -88,7 +88,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: pre-filter the tool list per turn so the model only sees the top-K relevant tools. The full catalog stays addressable via a discovery tool.
 
-*Ratel angle*: matches "BM25 tool retrieval" and "Replace-by-default pre-filter" (v0.1.5, shipped). This is the textbook case Ratel was built for.
+*Ratel angle*: matches "BM25 tool retrieval" and "Replace-by-default pre-filter" (shipped, v0.1.6 line). This is the textbook case Ratel was built for.
 
 ### 2.b Bloated tool descriptions
 
@@ -118,7 +118,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: consolidate or namespace explicitly. If both must exist (different upstreams), make the descriptions sharply distinguishing ("local repo only" vs "remote workspace").
 
-*Ratel angle*: matches "MCP server ingestion (upstream namespace prefix)" (v0.1.5, shipped) — Ratel namespaces upstream tools automatically and ranks them, so the model only sees the relevant variant.
+*Ratel angle*: matches "MCP server ingestion (upstream namespace prefix)" (shipped, v0.1.6 line) — Ratel namespaces upstream tools automatically and ranks them, so the model only sees the relevant variant.
 
 ### 2.e Dead tools
 
@@ -215,7 +215,7 @@ What it covers: prompt size, externalization, versioning, retrieval / RAG, conve
 
 *Recommendation*: extract the recurring blocks into named, retrievable units. In the meantime, deduplicate via shared prompt fragments.
 
-*Ratel angle*: matches "First-class skills" (v0.1.7, roadmap). Ratel will treat skills as retrievable first-class units alongside tools; until then, this is a hand-extraction pass.
+*Ratel angle*: matches "First-class skills" (v0.1.6, shipped). Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so extracted playbooks only enter context when relevant. Route the extraction to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md); see Dimension 11 for the fuller decomposition lens.
 
 ---
 
@@ -535,6 +535,98 @@ What it covers: prompt-injection guards, tool input validation, secret handling,
 
 ---
 
+## 11. Prompt decomposition
+
+What it covers: whether a long, monolithic system prompt could be broken into a lean core prompt plus retrievable skills — playbooks that only enter context when relevant. This is the *extraction* lens on prompt size; Dimension 3 (Context management) covers prompt hygiene and externalization at large, while this dimension asks specifically "what should leave the always-on prompt and become an on-demand skill?"
+
+**Detection inputs**:
+
+- System-prompt token size (in tokens / characters; ≈4 chars/token).
+- Whether the prompt mixes concerns: role definition + tool docs + output format + few-shot examples + recurring multi-step procedures + safety rules in one block.
+- Whether recurring instruction blocks are duplicated across prompts or call sites (grep for repeated multi-line instruction blocks; count the call sites).
+- Whether the codebase already uses any skills / playbook / retrievable-instruction mechanism, or carries everything inline every turn.
+
+**Common findings**:
+
+### 11.a Monolithic system prompt mixing many responsibilities
+
+*Detection*: a single system prompt that mixes three or more of {role, tool docs, output format, examples, recurring multi-step procedures, safety} in one block.
+
+*Severity*: Minor by default; Major if it is >3000 tokens of mixed concerns.
+
+*Recommendation*: keep a lean core prompt (role + contract + safety) and extract the rest into retrievable skills the agent loads on demand. Output format stays in a short contract section; examples and recurring procedures become named, retrievable units.
+
+*Ratel angle*: matches "First-class skills" (v0.1.6, shipped). Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so extracted playbooks only enter context when relevant. Route to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md).
+
+### 11.b Recurring multi-step procedures inlined as prompt prose
+
+*Detection*: the same multi-step procedure ("draft an email," "fetch then format," "summarise and extract," a triage runbook) appears as inline prompt prose across N call sites or agents instead of as a single retrievable skill.
+
+*Severity*: Minor when it appears in two call sites; Major when it appears in three or more, or when the duplicated block is large enough to dominate the prompt.
+
+*Recommendation*: extract each recurring procedure into one named, retrievable skill; replace the inline prose with a short reference. Deduplicate via shared fragments in the interim.
+
+*Ratel angle*: matches "First-class skills" (v0.1.6, shipped). Ratel makes the extracted procedure a first-class retrievable unit alongside tools, surfaced only when the turn calls for it. Route to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md).
+
+---
+
+## 12. Definition quality
+
+What it covers: the *quality* of tool **and** skill definitions as an optimizable retrieval surface. Dimension 2 (Tool surface) stays at the inventory level — count, sprawl, dead tools, duplication. This dimension is the optimization lens: given that these tools and skills exist, are their definitions written well for BM25 retrieval and model selection? Description-quality findings live primarily here; cross-reference Dimension 2 for the inventory-level cousins (2.b bloat, 2.c anemia, 2.d duplication, 2.f schemas) rather than double-counting them.
+
+**Detection inputs**:
+
+- Description length distribution across tools and skills (median, outliers).
+- Presence of both "what it does" and "when to use" in each description.
+- Parameter name descriptiveness (`q` / `arg1` / `data` vs `query` / `file_path` / `max_results`).
+- Enum presence where the value space is finite (a `status` string with no enum, a `mode` free-text field).
+- Schema tightness — `additionalProperties: true`, `{}`, or otherwise unconstrained.
+- Near-duplicate descriptions across definitions (overlapping token bags).
+
+**Common findings**:
+
+### 12.a Descriptions missing "when to use"
+
+*Detection*: descriptions state what the tool/skill does but never say when to reach for it, or name the definition rather than describe it. Cross-reference 2.c (anemic descriptions) at the inventory level.
+
+*Severity*: Major — the model cannot select correctly without a usage signal, and BM25 has fewer terms to match against.
+
+*Recommendation*: rewrite each description as one short "what it does" sentence plus a one-line "when to use." The model is the audience, not the human reader.
+
+*Ratel angle*: BM25 indexes names + descriptions + parameter names + enum values and strips schema structure (ADR-0004), so the "when to use" clause directly drives retrieval recall. LLM-driven definition suggestions are roadmap (v0.1.9); for now this is a hand-edit pass. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+
+### 12.b Non-descriptive parameter names
+
+*Detection*: parameters named `q`, `arg1`, `input`, `data`, `payload` where a descriptive name would carry meaning.
+
+*Severity*: Minor on its own; Major when it spans the catalog, because parameter names are part of the retrieval index.
+
+*Recommendation*: rename parameters to describe their content (`query`, `file_path`, `max_results`). The cost is one rename pass; the benefit is both clearer model selection and stronger BM25 matches.
+
+*Ratel angle*: BM25 indexes parameter names directly (ADR-0004), so descriptive names lift retrieval scores. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+
+### 12.c Missing enums where the value space is finite
+
+*Detection*: a parameter whose value space is finite (status, mode, sort order, region) typed as a free-text string with no `enum`.
+
+*Severity*: Minor — the model guesses values; runtime validation cleans up.
+
+*Recommendation*: add `enum` listing the legal values. This tightens model selection and adds the values to the retrieval index.
+
+*Ratel angle*: BM25 indexes enum values (ADR-0004), so declaring them improves both selection and retrieval. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+
+### 12.d Near-duplicate descriptions across definitions
+
+*Detection*: two or more definitions whose descriptions overlap heavily by token bag, blurring the ranker's ability to distinguish them. The inventory-level cousin is 2.d (duplicate tools); this entry is about the *wording*, even where the definitions are legitimately distinct.
+
+*Severity*: Major — the ranker cannot separate them, and the model picks inconsistently.
+
+*Recommendation*: rewrite the descriptions to be sharply distinguishing on the dimension that actually differs ("local repo only" vs "remote workspace"), even if the tools themselves stay.
+
+*Ratel angle*: BM25 ranks on name + description + parameter names + enum values (ADR-0004); sharply distinct wording is what lets the ranker separate near-duplicates. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+
+---
+
 ## How to combine findings into a dimension score
 
 Score each dimension once, using the **worst severity** in its findings:
@@ -550,4 +642,4 @@ If the dimension has *no signal at all in the codebase* (e.g., no observability 
 
 When Ratel ships a new feature, the corresponding row goes in [`../../ratel-langfuse-dashboards/references/ratel-value-map.md`](../../ratel-langfuse-dashboards/references/ratel-value-map.md) first. Only then does this catalog get an updated Ratel-angle line. Two reasons: (1) the value map is the source of truth, (2) a Ratel angle in the assessment that doesn't yet have a dashboard widget produces an unfinishable engagement.
 
-If you spot a new assessment dimension worth adding (something genuinely orthogonal to the existing ten), open a PR — but bias toward adding a new finding under an existing dimension first.
+If you spot a new assessment dimension worth adding (something genuinely orthogonal to the existing twelve), open a PR — but bias toward adding a new finding under an existing dimension first.

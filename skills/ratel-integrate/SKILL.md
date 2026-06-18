@@ -1,7 +1,7 @@
 ---
 name: ratel-integrate
 description: |
-  Inspect a customer codebase, figure out how it manages tools and which agent framework it uses, fetch Ratel documentation, and propose a plan to integrate Ratel's tool-search gateway (BM25 retrieval + `search_tools` / `invoke_tool` gateway tools). The plan includes the integration mode (direct SDK vs MCP gateway vs hybrid), an A/B test design, and the Langfuse metrics that will prove the integration is working. Use whenever the user wants to add Ratel to a partner codebase, asks "wire up Ratel here", "how would Ratel fit", "integrate the gateway", "add tool search", "Ratel pilot for this customer", or invokes `/ratel-integrate`. Trigger on phrases like "let's add Ratel", "integrate the context gateway", "set up the Ratel SDK in this repo", "plan a Ratel rollout for them", "Ratel A/B for this agent" — even if the user doesn't say "skill" or "ratel-integrate" by name. This skill writes a markdown plan and asks clarifying questions when the codebase is ambiguous; it does not edit the agent code itself.
+  Inspect a customer codebase, figure out how it manages tools and which agent framework it uses, fetch Ratel documentation, and propose a plan to integrate Ratel's context gateway (BM25 retrieval + unified `search_capabilities` / `invoke_tool` / `get_skill_content` gateway tools). The plan includes the integration mode (direct SDK vs MCP gateway vs hybrid), an A/B test design, and the Langfuse metrics that will prove the integration is working. Use whenever the user wants to add Ratel to a partner codebase, asks "wire up Ratel here", "how would Ratel fit", "integrate the gateway", "add tool search", "Ratel pilot for this customer", or invokes `/ratel-integrate`. Trigger on phrases like "let's add Ratel", "integrate the context gateway", "set up the Ratel SDK in this repo", "plan a Ratel rollout for them", "Ratel A/B for this agent" — even if the user doesn't say "skill" or "ratel-integrate" by name. This skill writes a markdown plan and asks clarifying questions when the codebase is ambiguous; it does not edit the agent code itself.
 allowed-tools:
   - Bash
   - Read
@@ -78,9 +78,11 @@ Capture this in 4-6 bullets in the plan.
 
 Ratel ships fast (every minor version every few weeks on the v0.1.x line). Don't recite from memory. Pull the current state at runtime.
 
-Tier 1: try [Context7](https://github.com/upstash/context7) via the available MCP tools. Resolve the library id for `ratel-ai/ratel` and fetch the README + SDK README + CLI README. This gives you whatever version's current.
+Tier 1 (preferred): try [Context7](https://github.com/upstash/context7) via the available MCP tools. Resolve the library id for `ratel-ai/ratel` and fetch the README + SDK README + CLI README. This gives you whatever version's current.
 
-Tier 2 (fallback): WebFetch raw GitHub READMEs. Canonical paths:
+Tier 2: WebFetch `https://docs.ratel.sh`. Start with [`https://docs.ratel.sh/llms.txt`](https://docs.ratel.sh/llms.txt) then [`/llms-full.txt`](https://docs.ratel.sh/llms-full.txt) for the full corpus, or pull the targeted pages: `/docs/sdks/typescript`, `/docs/sdks/python`, `/docs/skills` (also `/docs`, `/docs/quickstart`, `/docs/sdks`).
+
+Tier 3 (last resort): WebFetch raw GitHub READMEs, or — if the customer already has Ratel installed — read the package's own README from `node_modules/@ratel-ai/sdk/README.md` or the Python site-packages equivalent (most accurate for *their* pinned version). Canonical GitHub paths:
 
 ```
 https://raw.githubusercontent.com/ratel-ai/ratel/main/README.md
@@ -89,15 +91,13 @@ https://raw.githubusercontent.com/ratel-ai/ratel/main/src/integrations/cli/READM
 https://raw.githubusercontent.com/ratel-ai/ratel/main/src/integrations/mcp/README.md
 ```
 
-Tier 3 (only if the customer already has Ratel installed): read the package's own README from `node_modules/@ratel-ai/sdk/README.md` or the Python site-packages equivalent. This is the most accurate for *their* pinned version.
-
-Capture three things from whatever docs you read: the **current shipped version**, the **public API for tool registration / search / invoke**, and the **MCP gateway tool names**. If the public API has changed since the patterns in [`references/integration-patterns.md`](references/integration-patterns.md), trust the fetched docs and call out the discrepancy in the plan so the integration-patterns file gets updated next.
+Capture three things from whatever docs you read: the **current shipped version**, the **public API for tool/skill registration / search / invoke**, and the **MCP gateway tool names**. If the public API has changed since the patterns in [`references/integration-patterns.md`](references/integration-patterns.md), trust the fetched docs and call out the discrepancy in the plan so the integration-patterns file gets updated next.
 
 ### Step 4 — Decide the integration mode
 
 Based on Step 1's classification and Step 3's docs, pick one (and only one) primary integration mode:
 
-- **Direct SDK** — import the Ratel SDK in the agent process, register tools into a `ToolCatalog`, swap the agent's tool list for `catalog.search(query, topK).map(asToolDef)` (replace mode) or expose the two gateway tools.
+- **Direct SDK** (TS `@ratel-ai/sdk`, or Python `ratel-ai` — `pip install ratel-ai`, at full parity) — import the Ratel SDK in the agent process, register tools into a `ToolCatalog`, swap the agent's tool list for `catalog.search(query, topK).map(asToolDef)` (replace mode) or expose the unified gateway tools (`search_capabilities` / `invoke_tool`, plus `get_skill_content` if a `SkillCatalog` is registered). Register a `SkillCatalog` too for customers who also ship playbook-style skills.
 - **MCP gateway** — run `ratel serve` (or `@ratel-ai/mcp-server`) as a process; configure the customer's agent to talk to it via MCP. Their existing tool sources get ingested into the gateway as upstreams.
 - **Hybrid** — Direct SDK for the agent's local tools; MCP gateway as one of the agent's MCP clients for upstream-provided tools. Only recommend this when both kinds of tool surfaces exist.
 
@@ -137,7 +137,7 @@ Sample prompt to the user when in doubt:
 The integration is worthless if no one can prove it worked. Name the **exact Langfuse dashboards and scores** that measure this rollout, sourced from [`ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md):
 
 - **Token Cost & Savings** dashboard — the headline. Split by `feature_flag` tag. The plan must guarantee `input_tokens` per `chat-turn` trace will land in the arm tag correctly.
-- **Retrieval Quality** dashboard — needs `ratel.search_tools` observations with `top_hit_score`, `hit_count`, `top_k`. The plan must specify these get emitted (see Langfuse instrumentation's [`ratel-hooks.md`](../ratel-langfuse-instrument/references/ratel-hooks.md)).
+- **Retrieval Quality** dashboard — needs `ratel.search_capabilities` observations with `top_hit_score`, `hit_count`, `top_k`. The plan must specify these get emitted (see Langfuse instrumentation's [`ratel-hooks.md`](../ratel-langfuse-instrument/references/ratel-hooks.md)).
 - **Gateway Origin Split** dashboard — needs `metadata.gateway_origin = direct | agent` on every Ratel observation.
 - **Scores** — recommend wiring `tool_selection_accuracy` and `top_k_recall_at_5` if any form of ground truth (gold-labelled tool ids per task, eval dataset) exists.
 
@@ -148,7 +148,7 @@ If the customer has not yet run `/ratel-langfuse-instrument`, **do not proceed**
 Before writing the plan, check what you don't know and ask. The skill must surface its assumptions, not bury them. Common questions:
 
 - Is there a preferred Ratel version to pin to? (default: whatever's `latest` per Step 3)
-- Which Ratel feature(s) does the partner most want to validate first — tool retrieval (shipped), gateway origin pattern (shipped), or a roadmap one (v0.1.7 skills, v0.1.9 suggestions, etc.)?
+- Which Ratel feature(s) does the partner most want to validate first — tool retrieval (shipped), first-class skills (shipped, v0.1.6 line), gateway origin pattern (shipped), or a roadmap one (v0.1.9 suggestions, v0.1.10 decomposition, etc.)?
 - Is there ground truth labelling for any task, even for a subset? (drives the score-wiring decision)
 - Are there cost/latency budgets the integration must not bust?
 - Is the agent in production, internal preview, or pre-launch? (changes risk tolerance for A/B)
@@ -157,7 +157,7 @@ Group these into one batched question for the user (use `AskUserQuestion` if ava
 
 ### Step 9 — Write the plan
 
-Output to `<repo>/docs/ratel-integrate.md`. Sections, in order:
+Output to `<repo>/.ratel/ratel-integrate.md`. Sections, in order:
 
 1. **Summary** — stack, tool management approach, integration mode picked, pilot scope, A/B strategy, target Ratel version. Six bullets max.
 2. **Up-to-date docs reference** — note the Ratel version the plan was written against and the docs source (Context7 / GitHub raw / installed package).
@@ -165,9 +165,9 @@ Output to `<repo>/docs/ratel-integrate.md`. Sections, in order:
 4. **Integration plan** — file-by-file diff intent: where to register tools, where to swap the tool list / wire the dispatcher / connect the MCP gateway, where to set `metadata.gateway_origin`. Cite [`integration-patterns.md`](references/integration-patterns.md) rather than re-deriving.
 5. **A/B test plan** — strategy from Step 6, including the exact trace tag values and the feature-flag wiring choice (deferring to the user's pattern if they provided one).
 6. **Metrics & dashboards** — table mapping the Ratel-value dashboards from `/ratel-langfuse-dashboards` to "now / after rollout / after pilot expansion."
-7. **Roadmap pointers** — only what's directly relevant to this customer (e.g., if they care about skills, mention v0.1.7; if they care about decomposition, mention v0.1.10). Don't list the whole roadmap.
+7. **Roadmap pointers** — only what's directly relevant to this customer (e.g., if they care about suggestions, mention v0.1.9; if they care about decomposition, mention v0.1.10). First-class skills are already shipped (v0.1.6 line), so they belong in the integration plan, not here. Don't list the whole roadmap.
 8. **Open questions** — anything still ambiguous from Step 8.
-9. **Verification checklist** — five items the customer can tick after the integration lands: pilot trace_name uses Ratel, `feature_flag` tag is split correctly, `ratel.search_tools` observations appear, Token Cost & Savings dashboard shows separation between arms, Retrieval Quality dashboard has data.
+9. **Verification checklist** — five items the customer can tick after the integration lands: pilot trace_name uses Ratel, `feature_flag` tag is split correctly, `ratel.search_capabilities` observations appear, Token Cost & Savings dashboard shows separation between arms, Retrieval Quality dashboard has data.
 
 Print the table of contents inline in chat (six bullets max) and tell the user the file path. Do not paste the full plan body into the chat.
 

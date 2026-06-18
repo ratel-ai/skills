@@ -36,6 +36,8 @@ Then the scorecard:
 | Cost discipline | ... |
 | Eval / quality gates | ... |
 | Safety | ... |
+| Prompt decomposition | ... |
+| Definition quality | ... |
 ```
 
 ### 2. Findings
@@ -124,6 +126,8 @@ Northcrop's research agent is a Vercel AI SDK loop that exposes 41 tools to the 
 | Cost discipline | Weak |
 | Eval / quality gates | Strong |
 | Safety | Adequate |
+| Prompt decomposition | Weak |
+| Definition quality | Weak |
 
 ## Findings
 
@@ -149,7 +153,7 @@ Every chat turn sends all 41 tool descriptions to the model. At ~140 tokens aver
 
 **Recommendation**: pre-filter the tool list per turn so the model only sees the top-K (typically 8) most-relevant tools for the user's message. The full catalog remains addressable via a discovery surface.
 
-**Ratel angle**: matches Ratel's BM25 tool retrieval + replace-mode pre-filter (v0.1.5, shipped). Textbook fit for what Ratel was built for; expected input-token reduction is 50–85% on the catalog portion of the prompt.
+**Ratel angle**: matches Ratel's BM25 tool retrieval + replace-mode pre-filter (shipped, v0.1.6 line). Textbook fit for what Ratel was built for; expected input-token reduction is 50–85% on the catalog portion of the prompt.
 
 ### Bloated tool descriptions
 
@@ -161,7 +165,7 @@ Long descriptions inflate the catalog cost (compounding finding 2.a) and also co
 
 **Recommendation**: trim descriptions to one short "what it does" sentence + one "when to use" line. Move examples and edge-case detail to a separate spec document the agent does not see every turn.
 
-**Ratel angle**: matches Ratel's BM25 retrieval (v0.1.5, shipped) — the dashboard surfaces low top-hit scores for confusing descriptions, giving a direct measurement of which ones to rewrite. The roadmap entry for LLM-driven suggestions (v0.1.9) will eventually propose the rewrites automatically.
+**Ratel angle**: matches Ratel's BM25 retrieval (shipped, v0.1.6 line) — the dashboard surfaces low top-hit scores for confusing descriptions, giving a direct measurement of which ones to rewrite. The roadmap entry for LLM-driven suggestions (v0.1.9) will eventually propose the rewrites automatically.
 
 ### Near-duplicate tools
 
@@ -173,7 +177,31 @@ The model picks among near-duplicates inconsistently, which makes the agent's be
 
 **Recommendation**: consolidate each pair, or rewrite descriptions to be sharply distinguishing ("brief: fast, free-text overview" vs "crawl: deep, structured fetch with page bodies").
 
-**Ratel angle**: matches Ratel's BM25 retrieval (v0.1.5, shipped) — top-hit-score distribution will surface the duplication empirically.
+**Ratel angle**: matches Ratel's BM25 retrieval (shipped, v0.1.6 line) — top-hit-score distribution will surface the duplication empirically.
+
+### Monolithic system prompt mixing many responsibilities
+
+- **Dimension**: Prompt decomposition
+- **Severity**: Major
+- **Evidence**: `src/agents/research-agent/prompt.ts:5` is a single ~4,200-token system prompt that mixes role definition, inline tool usage notes, output-format rules, three few-shot examples, and a recurring "research → summarise → cite → synthesize" runbook. The same runbook appears again, near-verbatim, in `scripts/digest.ts:12` and `src/agents/research-agent/summarizer.ts:9`.
+
+The prompt carries every concern on every turn, so the runbook and examples pay input-token rent even when the turn is a one-line follow-up. The duplicated runbook across three call sites also means a change to the procedure has to be made — and kept consistent — in three places.
+
+**Recommendation**: keep a lean core prompt (role + output contract + safety) and extract the runbook and examples into named, retrievable skills the agent loads on demand. Deduplicate the three runbook copies into one unit first.
+
+**Ratel angle**: matches Ratel's first-class skills (v0.1.6, shipped) — Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so the runbook only enters context when the turn calls for it. Route to `/ratel-decompose-prompt`.
+
+### Tool descriptions missing "when to use"
+
+- **Dimension**: Definition quality
+- **Severity**: Major
+- **Evidence**: 28 of the 41 tools in `src/agents/research-agent/tools.ts` describe what the tool does but never say when to reach for it; six (`fetch`, `read`, `store`, `lookup`, `query`, `format`) use a single-word `q` or `data` parameter with no enum on finite fields like `mode` and `sort`.
+
+The model has to infer selection intent from "what it does" alone, and Ratel's BM25 index has fewer terms to match the user's turn against — both the "when to use" clause and descriptive parameter names are part of the index.
+
+**Recommendation**: rewrite each description as one "what it does" sentence plus a one-line "when to use," rename single-letter parameters, and add enums on the finite-value fields.
+
+**Ratel angle**: BM25 indexes names + descriptions + parameter names + enum values and strips schema structure (ADR-0004), so this wording directly drives retrieval quality. LLM-driven definition suggestions are roadmap (v0.1.9). Route to `/ratel-tune-definitions`.
 
 ### No max_tokens cap on chat-turn generations
 
@@ -205,20 +233,24 @@ The eval suite catches output regressions but cannot detect tool-selection regre
 
 **Recommendation**: label `ground_truth_tool_id` (or the equivalent list of acceptable tool ids) on each fixture. The catalog metadata vocabulary defines the key.
 
-**Ratel angle**: matches the Retrieval Quality dashboard's `recall@5` widget (v0.1.5, shipped) — once ground truth exists, retrieval quality becomes measurable in dashboards and CI.
+**Ratel angle**: matches the Retrieval Quality dashboard's `recall@5` widget (shipped, v0.1.6 line) — once ground truth exists, retrieval quality becomes measurable in dashboards and CI.
 
 ## Where Ratel fits
 
-Three findings in this report (tool sprawl, bloated descriptions, near-duplicates) are the textbook fit for Ratel's shipped v0.1.5 surface: BM25 tool retrieval with replace-mode pre-filter, paired with the Retrieval Quality dashboard. Once observability lands, the dashboard will show the input-token reduction directly and surface low top-hit scores for the descriptions that need rewriting.
+Three findings in this report (tool sprawl, bloated descriptions, near-duplicates) are the textbook fit for Ratel's shipped v0.1.6 surface: BM25 tool retrieval with replace-mode pre-filter, paired with the Retrieval Quality dashboard. Once observability lands, the dashboard will show the input-token reduction directly and surface low top-hit scores for the descriptions that need rewriting.
 
 The ground-truth labeling finding (Eval / quality gates, Minor) unlocks the Retrieval Quality dashboard's `recall@5` widget, which closes the measurement loop on the integration: not just "we sent fewer tokens" but "we sent the *right* tools." This is the partner-facing proof.
 
-The roadmap entry for LLM-driven suggestions (v0.1.9) will eventually propose the description rewrites this report calls out manually. Honest timing: that's roadmap, not shipped. Mention only if asked.
+Two further findings map to shipped surface beyond the catalog pre-filter. The monolithic-prompt finding (Prompt decomposition, Major) fits Ratel's first-class skills (v0.1.6, shipped): the duplicated runbook becomes a retrievable skill that Ratel ranks alongside tools and loads on demand, so it stops paying input-token rent every turn. The description-quality finding (Definition quality, Major) is the wording side of the same BM25 index — names, descriptions, parameter names, and enum values all feed retrieval (ADR-0004), so tightening them lifts recall directly.
+
+The roadmap entry for LLM-driven definition suggestions (v0.1.9) will eventually propose the description rewrites this report calls out manually. Honest timing: that's roadmap, not shipped. Mention only if asked.
 
 ## Recommended next steps
 
 - `/ratel-langfuse-instrument` — addresses *No observability wired* (Critical, Dimension 7). Required before any of the below can be measured.
 - `/ratel-integrate` — addresses *Tool sprawl on the chat turn*, *Bloated tool descriptions*, and *Near-duplicate tools* (all Major, Dimension 2). Pilot scope should be the `chat-turn` trace, A/B split via a feature flag.
+- `/ratel-decompose-prompt` — addresses *Monolithic system prompt mixing many responsibilities* (Major, Dimension 11). Extract the duplicated runbook and examples into retrievable skills.
+- `/ratel-tune-definitions` — addresses *Tool descriptions missing "when to use"* (Major, Dimension 12). Rewrite descriptions and tighten parameter names / enums for retrieval.
 - `/ratel-langfuse-dashboards` — after the above land, build the Token Cost & Savings and Retrieval Quality dashboards to measure the integration's impact.
 
 ## Appendix — inventory snapshot

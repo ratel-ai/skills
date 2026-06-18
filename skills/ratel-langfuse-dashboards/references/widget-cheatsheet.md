@@ -53,8 +53,17 @@ Plus one presentational choice:
 - Metric: `count`
 - Aggregation: `count`
 - Dimensions: `metadata.gateway_origin`, `day`
-- Filters: `observation_name in [ratel.search_tools, ratel.invoke_tool]`
+- Filters: `observation_name in [ratel.search_capabilities, ratel.invoke_tool, ratel.skill_search, ratel.get_skill_content]`
 - Visualization: `stacked-bar`
+
+### Skill retrieval over time
+
+- Data source: `observations`
+- Metric: `count`
+- Aggregation: `count`
+- Dimensions: `day`
+- Filters: `observation_name = ratel.skill_search`
+- Visualization: `line`
 
 ## Common mistakes
 

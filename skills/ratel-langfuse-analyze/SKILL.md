@@ -25,7 +25,7 @@ A finding is good if:
 2. It says **what to do**, not just what's wrong. Vague findings ("error rate is high") waste partner time.
 3. It says **why** the fix matters — in one sentence the customer's PM can read.
 4. It's tagged **Ratel** or **generic**. Mixing them hides the value story.
-5. If it's a Ratel-flavored finding, it cites the Ratel version that solves it (today: `v0.1.5` line; future: pull from [`ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md)).
+5. If it's a Ratel-flavored finding, it cites the Ratel version that solves it (today: `v0.1.6` line; future: pull from [`ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md)).
 
 A finding is bad if:
 - It's a restatement of a dashboard ("p95 latency is 4.2s"). Dashboards already show that.
@@ -39,7 +39,7 @@ A finding is bad if:
 Confirm the Langfuse MCP server is registered and reachable:
 
 ```bash
-# Inspect Claude Code's MCP config OR use the ratel-mcp gateway's search_tools
+# Inspect Claude Code's MCP config OR use the ratel-mcp gateway's search_capabilities
 # to confirm Langfuse tools are present.
 ```
 
@@ -111,7 +111,7 @@ Group findings by severity (high → low) within each category (ratel, generic).
 
 ### Step 7 — Write the report
 
-Output to `<repo>/docs/langfuse-analysis-<YYYY-MM-DD>.md`. Reports accumulate (one per run); don't overwrite previous ones. The directory should be the same one `/ratel-langfuse-instrument` writes to.
+Output to `<repo>/.ratel/langfuse-analysis-<YYYY-MM-DD>.md`. Reports accumulate (one per run); don't overwrite previous ones. The directory should be the same one `/ratel-langfuse-instrument` writes to.
 
 Structure:
 

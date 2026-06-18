@@ -8,23 +8,25 @@ Each row has:
 - **Signal** — the Langfuse data that proves the feature is working.
 - **Dashboard** — which dashboard in this catalog owns the widget that surfaces it.
 
-## Shipped today (v0.1.5 line)
+## Shipped today (v0.1.6 line)
 
 | Feature | Status | Signal | Dashboard |
 | --- | --- | --- | --- |
-| BM25 tool retrieval (top-K via `search_tools`) | shipped | `ratel.search_tools` observations with `top_k`, `hit_count`, `top_hit_score`, `took_ms` | Retrieval Quality |
+| BM25 retrieval (top-K tools + skills via `search_capabilities`) | shipped | `ratel.search_capabilities` observations with `top_k`, `hit_count`, `top_hit_score`, `took_ms` | Retrieval Quality |
 | Replace-by-default pre-filter (top-K injected, full catalog hidden) | shipped | `metadata.replace_mode=true` on `chat-turn` traces; `input_tokens` on root generation drops by 50–85% | Token Cost & Savings |
-| Gateway tools (`search_tools`, `invoke_tool`) | shipped | `metadata.gateway_origin in [direct, agent]` on every Ratel observation; count by origin | Gateway Origin Split |
+| Unified gateway tools (`search_capabilities`, `invoke_tool`, `get_skill_content`) | shipped | `metadata.gateway_origin in [direct, agent]` on every Ratel observation; count by origin | Gateway Origin Split |
+| First-class skills (`SkillCatalog`, ranked via `search_capabilities` skills bucket) | shipped | `ratel.skill_search` observations (skill ids, hit counts) and `ratel.get_skill_content` observations | Skill Retrieval Health |
+| TOON encoding | shipped | `metadata.encoding=toon` vs `json` on `ratel.invoke_tool`; per-call token delta | Token Cost & Savings ("TOON savings" widget) |
 | MCP server ingestion (upstream namespace prefix) | shipped | `ratel.upstream.invoke` observations with `server_name` and `tool_id` | Upstream Health |
 | OAuth 2.1 / PKCE auth flows | shipped | `ratel.auth.refresh`, `ratel.auth.needs`, `ratel.auth.flow_start`, `ratel.auth.flow_end` events | Upstream Health |
 | Trace stream (JSONL sink + future Langfuse sink) | shipped | every observation above exists in Langfuse | foundation for all dashboards |
+
+Note: `ratel.search_capabilities`, `ratel.skill_search`, `ratel.get_skill_content`, and the `metadata.gateway_origin` key are this suite's Langfuse-side observation/metadata conventions. The core (ADR-0009) emits `search` (with an `origin` field, `direct | agent`), `skill_search`, `get_skill_content`, invoke start/end/error, gateway-tool, upstream-ingest, and auth events. There is no `invoke_skill` — skills are read via `get_skill_content`, not executed.
 
 ## Coming soon (next minor versions)
 
 | Feature | Status | Signal it will add | Dashboard impact |
 | --- | --- | --- | --- |
-| TOON encoding (v0.1.6) | rc | `metadata.encoding=toon` vs `json` on `ratel.invoke_tool`; per-call token delta | Token Cost & Savings adds a "TOON savings" widget |
-| First-class skills (v0.1.7) | roadmap | `ratel.search_skills`, `ratel.invoke_skill` observations; skill ids in `metadata` | New "Skill Invocation Health" dashboard |
 | LLM-driven suggestions (v0.1.9) | roadmap | `ratel.suggestion.generated` events; `score_name = suggestion_adopted` | New "Suggestion Adoption" dashboard |
 | Multi-agent decomposition hints (v0.1.10) | roadmap | `ratel.decomposition.proposed` events; per-sub-agent catalog sizes | New "Decomposition Outcome" dashboard |
 | Semantic search + hybrid ranking (v0.1.12–v0.1.13) | roadmap | `metadata.ranker = bm25 | semantic | hybrid`; per-ranker top-hit score | Retrieval Quality adds a "Ranker comparison" widget |
@@ -42,14 +44,14 @@ Widgets:
 1. **Daily input tokens, split by feature flag** — line, sum, `dim: day, tag.feature_flag`, filter `trace_name = chat-turn`, `tag.env = prod`. Two lines: `tool_pool=full` and `tool_pool=ratel`.
 2. **Daily total cost per session** — line, avg, `dim: day, tag.feature_flag`, filter same as above.
 3. **Single-stat: tokens saved this week** — single-stat, sum of difference. Computed widget; if Langfuse v4 doesn't support computed widgets natively, ship two single-stats side by side and a footnote.
-4. **TOON savings** (only when v0.1.6 is in) — bar, avg, `dim: metadata.encoding`, metric `input_tokens`, filter `observation_name = ratel.invoke_tool`.
+4. **TOON savings** — bar, avg, `dim: metadata.encoding`, metric `input_tokens`, filter `observation_name = ratel.invoke_tool`.
 
 ### Retrieval Quality
 
 Shows Ratel is finding the right tools, not just any tools.
 
 Widgets:
-1. **Top-hit score distribution** — histogram, `metric: metadata.top_hit_score`, filter `observation_name = ratel.search_tools`.
+1. **Top-hit score distribution** — histogram, `metric: metadata.top_hit_score`, filter `observation_name = ratel.search_capabilities`.
 2. **Recall@5 (with ground truth)** — line, avg, `dim: day, tag.feature_flag`, filter `score_name = top_k_recall_at_5`. Only shown when ground-truth labelling is in place (per `ratel-hooks.md`).
 3. **Hit count over time** — line, avg of `metadata.hit_count`, `dim: day`.
 4. **Ranker comparison** (v0.1.12+) — line, avg `metadata.top_hit_score`, `dim: day, metadata.ranker`.
@@ -61,7 +63,7 @@ Shows whether the agent is using Ratel as a pre-filter or as a discovery surface
 
 Widgets:
 1. **Daily observations by origin** — stacked-bar, count, `dim: day, metadata.gateway_origin`.
-2. **Agent-origin invokes (the agent reached for `search_tools`)** — single-stat, count, filter `observation_name = ratel.search_tools`, `metadata.gateway_origin = agent`.
+2. **Agent-origin invokes (the agent reached for `search_capabilities`)** — single-stat, count, filter `observation_name = ratel.search_capabilities`, `metadata.gateway_origin = agent`.
 3. **Top tools called via gateway** — table, count, `dim: metadata.tool_id`, filter `observation_name = ratel.invoke_tool`, `metadata.gateway_origin = agent`. Top 20.
 
 ### Upstream Health
@@ -73,9 +75,15 @@ Widgets:
 2. **Upstream error rate, by server** — line, ratio of errors, `dim: day, metadata.server_name`.
 3. **Auth events** — table, count, `dim: observation_name, metadata.upstream`, filter `observation_name starts with ratel.auth`.
 
-### Skill Invocation Health (v0.1.7+)
+### Skill Retrieval Health
 
-Placeholder for when skills ship. Mirror structure of Gateway Origin Split, swapping `search_tools` → `search_skills`, `invoke_tool` → `invoke_skill`.
+Shows first-class skills are being found and loaded. Skills are surfaced via the `search_capabilities` skills bucket and read on demand via `get_skill_content` — they are loaded, not executed (there is no `invoke_skill`). Mirrors Gateway Origin Split / Retrieval Quality.
+
+Widgets:
+1. **Daily skill searches** — line, count, `dim: day`, filter `observation_name = ratel.skill_search`.
+2. **Top skills retrieved** — table, count, `dim: metadata.skill_id`, filter `observation_name = ratel.skill_search`. Top 20.
+3. **Skill hit-count distribution** — histogram, `metric: metadata.hit_count`, filter `observation_name = ratel.skill_search`.
+4. **Skill content loads** — single-stat, count, filter `observation_name = ratel.get_skill_content`. The ratio of loads to searches shows how often a retrieved skill is actually read.
 
 ### Suggestion Adoption (v0.1.9+)
 

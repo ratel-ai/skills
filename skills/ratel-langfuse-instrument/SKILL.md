@@ -86,9 +86,9 @@ The plan should list every name/tag/metadata key it introduces in one table the 
 
 ### Step 4 — Decide Ratel-aware hooks (only if Ratel is or will be present)
 
-Check whether `@ratel-ai/sdk`, `ratel-ai-core`, or the `ratel-mcp` / `@ratel-ai/mcp-server` package appears anywhere in the manifest. If yes — or if the customer is signing up to add Ratel as part of this engagement — read [`references/ratel-hooks.md`](references/ratel-hooks.md) and add a section to the plan covering:
+Check whether `@ratel-ai/sdk`, the Python `ratel-ai` package, `ratel-ai-core`, or the `ratel-mcp` / `@ratel-ai/mcp-server` package appears anywhere in the manifest. If yes — or if the customer is signing up to add Ratel as part of this engagement — read [`references/ratel-hooks.md`](references/ratel-hooks.md) and add a section to the plan covering:
 
-- Mapping each Ratel `TraceEvent` variant onto a Langfuse observation (`Search` → observation type `tool` named `ratel.search_tools`, `InvokeStart`/`InvokeEnd` → observation type `tool` named `ratel.invoke_tool`, etc.).
+- Mapping each Ratel trace event onto a Langfuse observation (`search` → observation type `tool` named `ratel.search_capabilities`, `skill_search` → `ratel.skill_search`, `get_skill_content` → `ratel.get_skill_content`, `InvokeStart`/`InvokeEnd` → observation type `tool` named `ratel.invoke_tool`, etc.).
 - Required metadata on each observation: `gateway_origin` (`direct` vs `agent`), `top_k`, `hit_count`, `replace_mode`, score of top hit, latency.
 - A "before / after" annotation strategy so the customer can run an A/B comparison once Ratel is wired in.
 
@@ -96,7 +96,7 @@ If Ratel is not present and there is no plan to introduce it, **skip this sectio
 
 ### Step 5 — Write the plan
 
-Write the plan to `<repo>/docs/ratel-langfuse-instrument.md` (create the `docs/` directory if it doesn't exist; ask the user to confirm the path if the repo already uses a different docs convention).
+Write the plan to `<repo>/.ratel/ratel-langfuse-instrument.md` (create the `.ratel/` directory if it doesn't exist; ask the user to confirm the path if the repo already uses a different docs convention).
 
 The plan must contain, in this order:
 

@@ -56,15 +56,15 @@ These break dashboards and analytics. Always fix first.
 - **Category**: ratel
 - **Detection**: `chat-turn` traces where input_tokens > some threshold (5000 is a useful default) AND the tool list in the system prompt or first user message is large (visible in the input field or estimable from observation count of tool-definition load events).
 - **Action**: introduce Ratel as a pre-filter (`replace_mode = true`). Recommend a pilot on the top trace_name only first. Cite expected savings from the benchmark in the Ratel README (~50–85% input token reduction at pool ≥ 180 tools).
-- **Solved by**: shipped, v0.1.5 line.
+- **Solved by**: shipped, v0.1.6 line.
 - **Severity**: high if it affects >25% of cost; medium otherwise.
 
-### Tool-payload bloat (RATEL, coming)
+### Tool-payload bloat (RATEL)
 
-- **Category**: ratel (roadmap)
+- **Category**: ratel
 - **Detection**: tool observations where output > 10kb AND the tool is called many times per session.
-- **Action**: today, prune output before recording. Future: Ratel's TOON encoding (v0.1.6) and smart pruning (v0.2.x) handle this systematically. Mention both: an immediate workaround and the eventual fix.
-- **Solved by**: v0.1.6 (TOON), v0.2.x (smart pruning).
+- **Action**: Ratel's TOON encoding (shipped, v0.1.6 line) handles this systematically — recommend enabling it and tracking the per-call token delta. For output bloat beyond encoding, prune output before recording today; smart pruning (v0.2.x) automates it later.
+- **Solved by**: shipped, v0.1.6 (TOON); v0.2.x (smart pruning).
 - **Severity**: medium.
 
 ### System-prompt / context bloat (generic)
@@ -97,7 +97,7 @@ These break dashboards and analytics. Always fix first.
 - **Category**: ratel
 - **Detection**: `score_value` average for `score_name = top_k_recall_at_5` is below 0.7 over the window.
 - **Action**: review tool descriptions for the tools that aren't being recalled. Ratel's suggestion engine (v0.1.9) will automate this; today, rewrite descriptions manually.
-- **Solved by**: shipped (today) with manual fix; v0.1.9 automates it.
+- **Solved by**: shipped (v0.1.6 line) with manual fix; v0.1.9 automates it.
 - **Severity**: medium (high if recall is below 0.5).
 
 ### Misrouted tool calls (RATEL)

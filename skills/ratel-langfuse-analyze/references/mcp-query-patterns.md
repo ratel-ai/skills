@@ -8,7 +8,7 @@ Before querying, list the tools the Langfuse MCP server actually exposes in the 
 
 ```
 # via the Ratel gateway (preferred):
-search_tools(query="langfuse traces sessions scores observations metrics")
+search_capabilities(query="langfuse traces sessions scores observations metrics")
 
 # or directly call the MCP server's tool-listing endpoint
 ```
@@ -136,7 +136,7 @@ Limit to one or two of these per finding — fetching trace bodies is the most e
 ## Pitfalls
 
 - **Time bounds are required for most metric calls.** Always pass `start_time` bounds. Unbounded queries on a busy customer can stall the analysis and rate-limit subsequent calls.
-- **Cache the tool list per session.** Don't call `search_tools` for every query — the MCP server's surface is stable for the session.
+- **Cache the tool list per session.** Don't call `search_capabilities` for every query — the MCP server's surface is stable for the session.
 - **Page large result sets.** If a list call returns 1000+ results and `has_more`, paginate. Truncated drill-downs miss outliers.
 - **Don't query `cloud.langfuse.com` directly via WebFetch.** It's authenticated; the MCP server is the only sanctioned path.
-- **Score names must match what's been wired.** The catalog assumes `tool_selection_accuracy`, `top_k_recall_at_5`, etc., but the actual customer may have used different names. Read `docs/ratel-langfuse-instrument.md` to confirm before filtering.
+- **Score names must match what's been wired.** The catalog assumes `tool_selection_accuracy`, `top_k_recall_at_5`, etc., but the actual customer may have used different names. Read `.ratel/ratel-langfuse-instrument.md` to confirm before filtering.

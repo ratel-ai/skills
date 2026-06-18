@@ -21,7 +21,7 @@ The output is a markdown plan with one section per dashboard. The customer build
 
 Partner startups want two different stories from the same data:
 
-1. **"Ratel is moving the numbers"** — token spend down, retrieval quality up, fewer "tool not found" errors, lower cost per session. These dashboards justify the engagement to whoever signs the cheque. The set evolves as Ratel ships new features (today it's pre-filter + retrieval; v0.1.7 adds skills; v0.1.9 adds suggestion adoption; v0.1.12+ adds semantic + re-rank). The shipped ones go in the customer's dashboard plan; the roadmapped ones get a "we'll add this when X ships" footnote.
+1. **"Ratel is moving the numbers"** — token spend down, retrieval quality up, fewer "tool not found" errors, lower cost per session. These dashboards justify the engagement to whoever signs the cheque. The set evolves as Ratel ships new features (today it's pre-filter + retrieval + first-class skills + TOON encoding; v0.1.9 adds suggestion adoption; v0.1.12+ adds semantic + re-rank). The shipped ones go in the customer's dashboard plan; the roadmapped ones get a "we'll add this when X ships" footnote.
 
 2. **"Our agent is healthy"** — latency percentiles, error rates per tool, abandoned-session rates, score distributions. These are useful regardless of Ratel. They build trust because they help the customer's engineers find their own bugs.
 
@@ -31,7 +31,7 @@ We always include both. Ratel-only dashboards feel like a sales pitch; agent-hea
 
 ### Step 1 — Read prior instrumentation context
 
-Look for `<repo>/docs/ratel-langfuse-instrument.md` (the deliverable of `/ratel-langfuse-instrument`). If present, read the vocabulary table (trace names, observation names, tags, metadata keys). Every dashboard widget references one or more of these — if a widget cites a name/tag/key that isn't in the table, either the table is incomplete or the widget needs to drop.
+Look for `<repo>/.ratel/ratel-langfuse-instrument.md` (the deliverable of `/ratel-langfuse-instrument`). If present, read the vocabulary table (trace names, observation names, tags, metadata keys). Every dashboard widget references one or more of these — if a widget cites a name/tag/key that isn't in the table, either the table is incomplete or the widget needs to drop.
 
 If the file is missing, ask the user three quick questions before continuing:
 
@@ -47,7 +47,7 @@ Open [`references/ratel-value-map.md`](references/ratel-value-map.md) and [`refe
 
 Default selection:
 
-- **Ratel-value group** (only if Ratel is in or coming): Token Cost & Savings, Retrieval Quality, Gateway Origin Split. Add roadmap-conditional ones only if the customer is on a Ratel pre-release that has the feature, or the customer has explicitly signed up to adopt it (e.g., skill invocation health for v0.1.7).
+- **Ratel-value group** (only if Ratel is in or coming): Token Cost & Savings, Retrieval Quality, Gateway Origin Split, Skill Retrieval Health (skills are shipped in the v0.1.6 line). Add roadmap-conditional ones only if the customer is on a Ratel pre-release that has the feature, or the customer has explicitly signed up to adopt it (e.g., suggestion adoption for v0.1.9).
 - **Agent-health group**: Latency & Cost Overview, Error Surface, Tool Usage, Session Quality, Model & Prompt Drift.
 
 You can add more from the catalog if the customer's instrumentation supports them, or drop any that don't have backing data. Skip rather than fake.
@@ -72,14 +72,14 @@ Each dashboard section in the output must have, in this order:
 
 ### Step 4 — Write the plan
 
-Output to `<repo>/docs/ratel-langfuse-dashboards.md`. Structure:
+Output to `<repo>/.ratel/ratel-langfuse-dashboards.md`. Structure:
 
 ```
 # Langfuse dashboards for <project>
 
 ## Summary
 - N Ratel-value dashboards, M agent-health dashboards.
-- Built on the instrumentation defined in docs/ratel-langfuse-instrument.md.
+- Built on the instrumentation defined in .ratel/ratel-langfuse-instrument.md.
 - Build order: <ordered list, simplest first>.
 
 ## Ratel-value dashboards
