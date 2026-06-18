@@ -46,7 +46,7 @@ report so we can see what's weak and where Ratel would help.
 
 Step 1 — install the Ratel skills suite:
 
-  npx skills add ratel-ai/skills -y -all
+  npx skills add ratel-ai/skills -y --all
 
 Step 2 — run the `ratel-assessment` skill on this repository. It
 will produce a markdown report at `docs/ratel-assessment-<date>.md`
