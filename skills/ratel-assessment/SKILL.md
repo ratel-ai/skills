@@ -16,7 +16,7 @@ allowed-tools:
 
 The first conversation with a partner startup is rarely "wire up Ratel." It is "show us you understand our agent." This skill is the front door: it reads the codebase, runs every dimension in the assessment catalog, and produces a markdown report the partner could (and would) share internally — whether or not they end up using Ratel.
 
-The deliverable is a polished, evidence-led report at `<repo>/docs/ratel-assessment-<YYYY-MM-DD>.md`. The report carries credibility because every finding cites a file path, a line range, or a concrete count. It carries narrative because the Ratel-relevant findings cluster into a "Where Ratel fits" section that ties them to specific shipped features and roadmap versions. It carries momentum because it ends with conditional pointers to the right follow-up skill from the suite ([`/ratel-langfuse-instrument`](../ratel-langfuse-instrument/SKILL.md), [`/ratel-langfuse-dashboards`](../ratel-langfuse-dashboards/SKILL.md), [`/ratel-langfuse-analyze`](../ratel-langfuse-analyze/SKILL.md), [`/ratel-integrate`](../ratel-integrate/SKILL.md)).
+The deliverable is a polished, evidence-led report at `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.md`. The report carries credibility because every finding cites a file path, a line range, or a concrete count. It carries narrative because the Ratel-relevant findings cluster into a "Where Ratel fits" section that ties them to specific shipped features and roadmap versions. It carries momentum because it ends with conditional pointers to the right follow-up skill from the suite ([`/ratel-langfuse-instrument`](../ratel-langfuse-instrument/SKILL.md), [`/ratel-langfuse-dashboards`](../ratel-langfuse-dashboards/SKILL.md), [`/ratel-langfuse-analyze`](../ratel-langfuse-analyze/SKILL.md), [`/ratel-integrate`](../ratel-integrate/SKILL.md), [`/ratel-decompose-prompt`](../ratel-decompose-prompt/SKILL.md), [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md)).
 
 This skill complements the rest of the suite:
 
@@ -59,7 +59,7 @@ Launch one **Explore** agent (or do it directly for small repos) with a single, 
 
 1. **Agent entry points** — HTTP handlers, queue consumers, CLI verbs, chat-platform webhooks. One bullet per entry point with file path.
 2. **Tool definitions** — every place tools are declared (registries, decorators, MCP client setup). Total count. For each tool: id, name, description length, schema presence, inline vs externalized.
-3. **Prompt templates** — every system / user / tool prompt. Where they live (inline string, separate file, prompt-management service). Approximate token weight if the file makes that easy to estimate.
+3. **Prompt templates** — every system / user / tool prompt. Where they live (inline string, separate file, prompt-management service). Approximate token weight if the file makes that easy to estimate. Also note whether a prompt mixes concerns (role + tool docs + output format + examples + recurring multi-step procedures + safety) and whether any recurring instruction block is duplicated across prompts or call sites — this feeds Dimension 11 (Prompt decomposition).
 4. **Sub-agent boundaries** — supervisor / worker / role-specialized agents; handoff sites; whether sub-agents are explicit (named) or implicit (the same loop with different prompts).
 5. **Session/context handling** — where the conversation thread / job correlation id originates; whether anything propagates it through sub-agents.
 6. **Model routing** — which models get called for which tasks; whether routing is task-aware or uniform.
@@ -92,7 +92,7 @@ Do not invent dimensions not in the catalog. If you spot something genuinely nov
 
 ### Step 5 — Score the scorecard
 
-Each of the ten dimensions gets exactly one of:
+Each of the twelve dimensions gets exactly one of:
 
 - **Strong** — well-handled; no findings worse than Info.
 - **Adequate** — works; one or two Minor findings; no Major or worse.
@@ -103,7 +103,7 @@ The scorecard goes at the top of the report. It is the first thing the partner r
 
 ### Step 6 — Generate the report
 
-Output to `<repo>/docs/ratel-assessment-<YYYY-MM-DD>.md` using the structure in [`references/report-template.md`](references/report-template.md). Date-stamped so multiple runs accumulate without overwriting.
+Output to `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.md` using the structure in [`references/report-template.md`](references/report-template.md). Date-stamped so multiple runs accumulate without overwriting.
 
 Sections, in order:
 
@@ -134,6 +134,8 @@ The "Recommended next steps" section is conditional on findings. Never list a sk
 | Observability is `Strong` *and* live data was reachable | `/ratel-langfuse-analyze` |
 | Any Tool surface finding tagged with a Ratel angle | `/ratel-integrate` |
 | Decomposition / topology Ratel-angle finding present | `/ratel-integrate` (with a note that decomposition support is roadmap v0.1.10) |
+| Prompt decomposition finding (`Weak` or `Missing` dimension) | `/ratel-decompose-prompt` |
+| Definition quality finding (`Weak` or `Missing` dimension) | `/ratel-tune-definitions` |
 | None of the above | omit the section entirely |
 
 Each pointer is one line: skill name + the *specific* finding from this report it follows up on. Do not paraphrase the skill descriptions; the partner can read them.
@@ -152,11 +154,11 @@ If after Step 1 you cannot find any LLM client import, tool definition, agent fr
 
 > No agent surface detected — checked `<files looked at>`. If the agent lives somewhere unusual, point me at it and I'll re-run. Otherwise this codebase isn't a fit for `/ratel-assessment`.
 
-If the codebase is an agent but the catalog finds *nothing worse than Info* across all ten dimensions, write the report anyway — the scorecard will read all-Strong or near-all-Strong, the findings section will be small, and the conclusion will be "this agent is in good shape; the Ratel-relevant angle is `<one-or-zero items>`." That is itself a credibility-building report; do not pad it.
+If the codebase is an agent but the catalog finds *nothing worse than Info* across all twelve dimensions, write the report anyway — the scorecard will read all-Strong or near-all-Strong, the findings section will be small, and the conclusion will be "this agent is in good shape; the Ratel-relevant angle is `<one-or-zero items>`." That is itself a credibility-building report; do not pad it.
 
 ## Reference files
 
-- [`references/assessment-catalog.md`](references/assessment-catalog.md) — the ten dimensions, detection heuristics, severity rubrics, recommendations, and Ratel angles. The load-bearing file.
+- [`references/assessment-catalog.md`](references/assessment-catalog.md) — the twelve dimensions, detection heuristics, severity rubrics, recommendations, and Ratel angles. The load-bearing file.
 - [`references/stack-detection.md`](references/stack-detection.md) — quick playbook for classifying the agent stack; cross-links to `/ratel-langfuse-instrument`'s per-stack files for deeper detail.
 - [`references/report-template.md`](references/report-template.md) — canonical report structure and a worked example.
 

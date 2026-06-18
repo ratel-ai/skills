@@ -104,7 +104,7 @@ Regardless of pattern, every Ratel-arm trace needs these tags / metadata for the
 | `tag.stack` | the customer's stack id (same in both) | same |
 | `tag.agent_version` | git sha or version (same in both) | same |
 | `metadata.gateway_origin` (on Ratel observations) | `direct` or `agent` | n/a |
-| `metadata.top_k` (on `ratel.search_tools`) | the k used | n/a |
+| `metadata.top_k` (on `ratel.search_capabilities`) | the k used | n/a |
 | `metadata.replace_mode` | `true` (Mode 1 replace) or `false` (gateway mode) | n/a |
 | `tag.shadow` (Pattern 2 only) | `true` on shadow traces | not present on prod traces |
 | `tag.replay` (Pattern 3 only) | `true` on replay traces | not present on baseline traces |
