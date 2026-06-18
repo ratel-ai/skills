@@ -38,30 +38,21 @@ npx skills add ./skills
 
 The `npx skills` CLI is [Vercel Labs' open agent skills tool](https://github.com/vercel-labs/skills) — compatible with Claude Code, Cursor, Codex, OpenCode, Gemini CLI, and 40+ other coding agents.
 
-## Quickstart — copy-paste this into your coding agent
+## Quickstart — paste this into your coding agent
+
+Want a read on your agent first? The assessment is free and static — no setup:
 
 ```text
-I want you to assess my agent codebase and produce a Ratel-flavored
-report so we can see what's weak and where Ratel would help.
-
-Step 1 — install the Ratel skills suite:
-
-  npx skills add ratel-ai/skills -y --all
-
-Step 2 — run the `ratel-assessment` skill on this repository. It
-will produce a markdown report at `.ratel/ratel-assessment-<date>.md`
-with a 12-dimension scorecard, evidence-backed findings, and a
-"Where Ratel fits" section.
-
-Once we've reviewed the report together, run the `ratel-integrate`
-skill to produce a concrete rollout plan (integration mode, pilot
-scope, A/B test design, Langfuse metrics) at
-`.ratel/ratel-integrate.md`.
-
-Show me the scorecard inline and link to the report file.
+Run npx skills add ratel-ai/skills --all and use the skills to assess the agents in this codebase and show me where Ratel would help.
 ```
 
-Two skills are surfaced explicitly here. The other five are reachable via the assessment report's "Recommended next steps" section — every finding routes to the right follow-up skill, whether that's observability work or a concrete fix.
+Ready to wire Ratel in? Go straight to the integration plan:
+
+```text
+Run npx skills add ratel-ai/skills --all and use the skills to integrate Ratel in this project.
+```
+
+Either entry point pulls in the whole suite. The assessment writes a report to `.ratel/ratel-assessment-<date>.md` and ends with "Recommended next steps" — every finding routes to the right follow-up skill (instrument, dashboards, integrate, analyze, or one of the two fix-skills), so you don't have to know the arc up front.
 
 ## What's inside
 
