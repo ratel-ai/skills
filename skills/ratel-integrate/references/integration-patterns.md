@@ -73,7 +73,7 @@ If the customer also ships playbook-style skills, register a `SkillCatalog` alon
 
 ### Vercel AI SDK specifics
 
-The two patterns above drop into `generateText` / `streamText` directly. Wrap the call in the customer's existing observability span (per [`ratel-langfuse-instrument/references/stack-vercel-ai-sdk.md`](../../ratel-langfuse-instrument/references/stack-vercel-ai-sdk.md)) so the Ratel-emitted trace events land under the same trace.
+The two patterns above drop into `generateText` / `streamText` directly. Wrap the call in the customer's existing observability span (per [`ratel-langfuse-integrate/references/stack-vercel-ai-sdk.md`](../../ratel-langfuse-integrate/references/stack-vercel-ai-sdk.md)) so the Ratel-emitted trace events land under the same trace.
 
 ### Mastra / generic TS specifics
 
@@ -92,7 +92,7 @@ Setup steps for the plan:
 2. **Configure upstreams**: `ratel mcp add <name> --transport stdio --command "<cmd>"` or `--transport sse --url ...`. Each upstream's tools are ingested into the catalog with namespace prefix `upstream__toolName`.
 3. **Run** `ratel serve` as the MCP server the agent connects to. Point the agent's MCP config at this process.
 4. **Auth (if needed)**: for SSE/HTTP upstreams that use OAuth, run `ratel mcp auth <name>` once per upstream — Ratel handles refresh and re-auth after that.
-5. **Trace stream**: by default lands in `~/.ratel/telemetry/<project-slug>/<session-id>.jsonl`. Wire the forwarder from [`ratel-langfuse-instrument/references/ratel-hooks.md`](../../ratel-langfuse-instrument/references/ratel-hooks.md) to push to Langfuse, or wait for the native Langfuse sink.
+5. **Trace stream**: by default lands in `~/.ratel/telemetry/<project-slug>/<session-id>.jsonl`. Wire the forwarder from [`ratel-langfuse-integrate/references/ratel-hooks.md`](../../ratel-langfuse-integrate/references/ratel-hooks.md) to push to Langfuse, or wait for the native Langfuse sink.
 
 The agent sees Ratel's unified gateway tools (`search_capabilities`, `invoke_tool`, and `get_skill_content` when skills are registered). To use a tool, it calls `search_capabilities` first and then `invoke_tool` with the returned id. This is the most token-efficient mode at very large catalogs but requires the agent to handle the discovery step.
 
@@ -147,5 +147,5 @@ For each agent surface the plan touches, the per-file changes must answer:
 2. **Init site**: the file + line where the `ToolCatalog` is constructed (Mode 1) or where `ratel serve` is launched (Mode 2).
 3. **Registration site**: where every tool the agent uses is registered.
 4. **Swap site**: where the agent's `tools:` parameter is replaced with the top-K or with the gateway tools.
-5. **Metadata wiring**: where `gateway_origin`, `top_k`, `hit_count`, `top_hit_score`, `replace_mode` get attached to the Langfuse observation. See [`ratel-langfuse-instrument/references/ratel-hooks.md`](../../ratel-langfuse-instrument/references/ratel-hooks.md).
+5. **Metadata wiring**: where `gateway_origin`, `top_k`, `hit_count`, `top_hit_score`, `replace_mode` get attached to the Langfuse observation. See [`ratel-langfuse-integrate/references/ratel-hooks.md`](../../ratel-langfuse-integrate/references/ratel-hooks.md).
 6. **Flag check**: where the A/B feature flag is read to decide which arm of the split the request belongs to (see [`ab-test-patterns.md`](ab-test-patterns.md)).

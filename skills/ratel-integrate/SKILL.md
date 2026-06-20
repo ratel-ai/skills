@@ -1,7 +1,7 @@
 ---
 name: ratel-integrate
 description: |
-  Inspect a customer codebase, figure out how it manages tools and which agent framework it uses, fetch Ratel documentation, and propose a plan to integrate Ratel's context gateway (BM25 retrieval + unified `search_capabilities` / `invoke_tool` / `get_skill_content` gateway tools). The plan includes the integration mode (direct SDK vs MCP gateway vs hybrid), an A/B test design, and the Langfuse metrics that will prove the integration is working. Use whenever the user wants to add Ratel to a partner codebase, asks "wire up Ratel here", "how would Ratel fit", "integrate the gateway", "add tool search", "Ratel pilot for this customer", or invokes `/ratel-integrate`. Trigger on phrases like "let's add Ratel", "integrate the context gateway", "set up the Ratel SDK in this repo", "plan a Ratel rollout for them", "Ratel A/B for this agent" — even if the user doesn't say "skill" or "ratel-integrate" by name. This skill writes a markdown plan and asks clarifying questions when the codebase is ambiguous; it does not edit the agent code itself.
+  Inspect a customer codebase, figure out how it manages tools and which agent framework it uses, fetch Ratel documentation, and propose a plan to integrate Ratel's context gateway (BM25 retrieval + unified `search_capabilities` / `invoke_tool` / `get_skill_content` gateway tools). The plan includes the integration mode (direct SDK vs MCP gateway vs hybrid), an A/B test design, and the observability metrics (via your vendor integrate skill, e.g. Langfuse or LangSmith) that will prove the integration is working. Use whenever the user wants to add Ratel to a partner codebase, asks "wire up Ratel here", "how would Ratel fit", "integrate the gateway", "add tool search", "Ratel pilot for this customer", or invokes `/ratel-integrate`. Trigger on phrases like "let's add Ratel", "integrate the context gateway", "set up the Ratel SDK in this repo", "plan a Ratel rollout for them", "Ratel A/B for this agent" — even if the user doesn't say "skill" or "ratel-integrate" by name. This skill writes a markdown plan and asks clarifying questions when the codebase is ambiguous; it does not edit the agent code itself.
 allowed-tools:
   - Bash
   - Read
@@ -15,15 +15,17 @@ allowed-tools:
 
 # /ratel-integrate — plan a Ratel rollout for a customer agent
 
-Most partner engagements eventually want Ratel itself in the picture, not just observability around it. This skill turns "let's pilot Ratel here" into a concrete week-one plan: which integration mode to use, which tools to pilot first, how to A/B test the impact, and which Langfuse metrics from the trio (`/ratel-langfuse-instrument`, `/ratel-langfuse-dashboards`, `/ratel-langfuse-analyze`) will tell you whether it worked.
+This skill integrates the Ratel **context gateway**, not an AI-observability vendor; for observability instrumentation and dashboards see [`/ratel-observability-assessment`](../ratel-observability-assessment/SKILL.md).
+
+Most partner engagements eventually want Ratel itself in the picture, not just observability around it. This skill turns "let's pilot Ratel here" into a concrete week-one plan: which integration mode to use, which tools to pilot first, how to A/B test the impact, and which observability metrics will tell you whether it worked.
 
 The deliverable is a markdown plan the customer can implement and a clear answer to the question "how will we know if it helped." Both halves matter.
 
-This skill complements the Langfuse trio:
+This skill builds on the observability funnel:
 
-- **Run after** [`/ratel-langfuse-instrument`](../ratel-langfuse-instrument/SKILL.md) so the customer's trace vocabulary (sessions, feature_flag tags, `metadata.gateway_origin`) is already in place. If it isn't, the skill will point them back there before continuing.
-- **Drives** [`/ratel-langfuse-dashboards`](../ratel-langfuse-dashboards/SKILL.md) — the Ratel-value dashboards in that catalog measure the integration this skill is planning. The skill should explicitly name which dashboards the customer should build / refresh after the rollout.
-- **Feeds** [`/ratel-langfuse-analyze`](../ratel-langfuse-analyze/SKILL.md) — once traffic is flowing under the A/B split, the analyze skill will surface findings from the integration.
+- **Run after** [`/ratel-observability-assessment`](../ratel-observability-assessment/SKILL.md) and your vendor integrate skill ([`/ratel-langfuse-integrate`](../ratel-langfuse-integrate/SKILL.md) or [`/ratel-langsmith-integrate`](../ratel-langsmith-integrate/SKILL.md)) so the customer's trace vocabulary (sessions, feature_flag tags, `metadata.gateway_origin`) is already in place. If it isn't, the skill will point them back there before continuing.
+- **Drives** the vendor integrate skill's dashboards — the Ratel-value dashboards there measure the integration this skill is planning. The skill should explicitly name which dashboards the customer should build / refresh after the rollout.
+- **Feeds** the vendor analyze skill ([`/ratel-langfuse-analyze`](../ratel-langfuse-analyze/SKILL.md) or [`/ratel-langsmith-analyze`](../ratel-langsmith-analyze/SKILL.md)) — once traffic is flowing under the A/B split, the analyze skill will surface findings from the integration.
 
 ## Philosophy
 
@@ -124,7 +126,7 @@ Read [`references/ab-test-patterns.md`](references/ab-test-patterns.md). Pick a 
 - **Shadow mode** (when production risk is high): production keeps the original path; the Ratel path runs in parallel, logs to Langfuse, but its output isn't returned to the user.
 - **Replay** (when traffic is too thin for a live split): collect inputs from the original path into a Langfuse dataset; replay through Ratel afterwards.
 
-For each: state the trace tags / metadata the customer must emit so the dashboards from `/ratel-langfuse-dashboards` light up correctly.
+For each: state the trace tags / metadata the customer must emit so the dashboards from your vendor integrate skill (Langfuse shown as the example) light up correctly.
 
 If the codebase doesn't have an existing flagging pattern, **ask the user** before recommending one of your own. Common patterns to ask about: feature flag SaaS (LaunchDarkly, Statsig, GrowthBook), env-var split, percent-of-user hashing, internal experimentation framework.
 
@@ -132,16 +134,16 @@ Sample prompt to the user when in doubt:
 
 > The codebase doesn't have an obvious feature-flag layer for this A/B. Do you have an internal pattern for traffic splits — e.g., a LaunchDarkly client, env-based toggles, or a percentage rollout helper — or should I propose a minimal one inline in the plan?
 
-### Step 7 — Tie to Langfuse metrics
+### Step 7 — Tie to observability metrics
 
-The integration is worthless if no one can prove it worked. Name the **exact Langfuse dashboards and scores** that measure this rollout, sourced from [`ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md):
+The integration is worthless if no one can prove it worked. Name the **exact dashboards and scores** that measure this rollout, sourced from the conceptual value map at [`ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md) and rendered by your vendor integrate skill dashboards (Langfuse shown here as the example):
 
 - **Token Cost & Savings** dashboard — the headline. Split by `feature_flag` tag. The plan must guarantee `input_tokens` per `chat-turn` trace will land in the arm tag correctly.
-- **Retrieval Quality** dashboard — needs `ratel.search_capabilities` observations with `top_hit_score`, `hit_count`, `top_k`. The plan must specify these get emitted (see Langfuse instrumentation's [`ratel-hooks.md`](../ratel-langfuse-instrument/references/ratel-hooks.md)).
+- **Retrieval Quality** dashboard — needs `ratel.search_capabilities` observations with `top_hit_score`, `hit_count`, `top_k`. The plan must specify these get emitted (see your vendor integrate skill's Ratel hooks — for Langfuse, [`ratel-hooks.md`](../ratel-langfuse-integrate/references/ratel-hooks.md)).
 - **Gateway Origin Split** dashboard — needs `metadata.gateway_origin = direct | agent` on every Ratel observation.
 - **Scores** — recommend wiring `tool_selection_accuracy` and `top_k_recall_at_5` if any form of ground truth (gold-labelled tool ids per task, eval dataset) exists.
 
-If the customer has not yet run `/ratel-langfuse-instrument`, **do not proceed** to Step 8. Route them back. Building a Ratel plan that nobody can measure produces an unverifiable engagement.
+If the customer has not yet run `/ratel-observability-assessment` and their vendor integrate skill, **do not proceed** to Step 8. Route them back. Building a Ratel plan that nobody can measure produces an unverifiable engagement.
 
 ### Step 8 — Ask for any missing information
 
@@ -164,7 +166,7 @@ Output to `<repo>/.ratel/ratel-integrate.md`. Sections, in order:
 3. **Topology + tool-management map** — from Steps 1-2.
 4. **Integration plan** — file-by-file diff intent: where to register tools, where to swap the tool list / wire the dispatcher / connect the MCP gateway, where to set `metadata.gateway_origin`. Cite [`integration-patterns.md`](references/integration-patterns.md) rather than re-deriving.
 5. **A/B test plan** — strategy from Step 6, including the exact trace tag values and the feature-flag wiring choice (deferring to the user's pattern if they provided one).
-6. **Metrics & dashboards** — table mapping the Ratel-value dashboards from `/ratel-langfuse-dashboards` to "now / after rollout / after pilot expansion."
+6. **Metrics & dashboards** — table mapping the Ratel-value dashboards from your vendor integrate skill (Langfuse shown as the example) to "now / after rollout / after pilot expansion."
 7. **Roadmap pointers** — only what's directly relevant to this customer (e.g., if they care about suggestions, mention v0.1.9; if they care about decomposition, mention v0.1.10). First-class skills are already shipped (v0.1.6 line), so they belong in the integration plan, not here. Don't list the whole roadmap.
 8. **Open questions** — anything still ambiguous from Step 8.
 9. **Verification checklist** — five items the customer can tick after the integration lands: pilot trace_name uses Ratel, `feature_flag` tag is split correctly, `ratel.search_capabilities` observations appear, Token Cost & Savings dashboard shows separation between arms, Retrieval Quality dashboard has data.
@@ -177,7 +179,7 @@ Three skip cases:
 
 1. **No LLM tool surface in the codebase.** No `tools: { ... }` parameter, no `@tool` decorators, no MCP client. Tell the user there's nothing for Ratel to pre-filter and stop. Don't fabricate a "potential future fit."
 2. **Catalog too small (<15 tools).** Ratel's benefit grows with catalog size; under ~15 well-described tools, the integration overhead exceeds the win. Tell the user this and suggest revisiting when the catalog grows.
-3. **Langfuse not yet instrumented.** Route to `/ratel-langfuse-instrument` first. A Ratel rollout without observability is not measurable, and an unmeasurable rollout is indistinguishable from no rollout.
+3. **Observability not yet instrumented.** Route to `/ratel-observability-assessment` and your vendor integrate skill (`/ratel-langfuse-integrate` or `/ratel-langsmith-integrate`) first. A Ratel rollout without observability is not measurable, and an unmeasurable rollout is indistinguishable from no rollout.
 
 ## Reference files
 
@@ -186,5 +188,5 @@ Three skip cases:
 
 Reads from (don't duplicate):
 
-- [`../ratel-langfuse-instrument/references/ratel-hooks.md`](../ratel-langfuse-instrument/references/ratel-hooks.md) — Ratel trace event → Langfuse observation mapping
-- [`../ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md) — Ratel feature → Langfuse signal → dashboard widget
+- [`../ratel-langfuse-integrate/references/ratel-hooks.md`](../ratel-langfuse-integrate/references/ratel-hooks.md) — Ratel trace event → Langfuse observation mapping (vendor-specific example; LangSmith equivalent lives in `/ratel-langsmith-integrate`)
+- [`../ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md) — Ratel feature → observable signal → version (vendor-neutral; each vendor integrate skill renders the concrete widgets)

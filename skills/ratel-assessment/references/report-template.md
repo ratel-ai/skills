@@ -62,7 +62,7 @@ Skip an empty severity tier. If there are no Critical findings, the section star
 
 ### 3. Where Ratel fits
 
-A short narrative (3–8 sentences, plus a short bulleted list if helpful) consolidating the threaded Ratel-angle tags into one story. Tied to specific Ratel feature/version anchors from [`../../ratel-langfuse-dashboards/references/ratel-value-map.md`](../../ratel-langfuse-dashboards/references/ratel-value-map.md). Be honest about shipped vs roadmap.
+A short narrative (3–8 sentences, plus a short bulleted list if helpful) consolidating the threaded Ratel-angle tags into one story. Tied to specific Ratel feature/version anchors from [`../../ratel-observability-assessment/references/ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md). Be honest about shipped vs roadmap.
 
 If only one or two findings carried Ratel angles, this section is short — say so plainly ("Two of the findings above are addressable with Ratel today: ...") and stop. Do not pad.
 
@@ -73,7 +73,7 @@ If no findings carried Ratel angles, omit this section entirely. Do not invent a
 Conditional pointers per the mapping table in the main `SKILL.md`. Each pointer is one line, naming the specific finding(s) that drive it:
 
 ```markdown
-- `/ratel-langfuse-instrument` — addresses *No observability wired* (Critical, Dimension 7).
+- `/ratel-observability-assessment` — addresses *No observability wired* (Critical, Dimension 7).
 - `/ratel-integrate` — addresses *Tool sprawl* (Major, Dimension 2) and *Bloated tool descriptions* (Major, Dimension 2).
 ```
 
@@ -139,9 +139,9 @@ Northcrop's research agent is a Vercel AI SDK loop that exposes 41 tools to the 
 
 The agent runs in production (`README.md` describes a live customer surface) but there is no way for anyone outside the running process to observe what it does. Regressions across deploys are invisible; cost spikes are invisible; per-tool failure modes are invisible. None of the other findings in this report are independently verifiable without this loop closed.
 
-**Recommendation**: wire Langfuse via the patterns in `/ratel-langfuse-instrument` before any other change in this report. Two-day landing window is typical.
+**Recommendation**: wire Langfuse via the patterns in `/ratel-observability-assessment` before any other change in this report. Two-day landing window is typical.
 
-**Ratel angle**: routes to `/ratel-langfuse-instrument` — and downstream, once data is flowing, `/ratel-langfuse-dashboards` to build the cost and retrieval-quality dashboards that will measure the rest of the report's recommendations.
+**Ratel angle**: routes to `/ratel-observability-assessment` — and downstream, once data is flowing, `/ratel-observability-assessment` to build the cost and retrieval-quality dashboards that will measure the rest of the report's recommendations.
 
 ### Tool sprawl on the chat turn
 
@@ -247,11 +247,11 @@ The roadmap entry for LLM-driven definition suggestions (v0.1.9) will eventually
 
 ## Recommended next steps
 
-- `/ratel-langfuse-instrument` — addresses *No observability wired* (Critical, Dimension 7). Required before any of the below can be measured.
+- `/ratel-observability-assessment` — addresses *No observability wired* (Critical, Dimension 7). Required before any of the below can be measured.
 - `/ratel-integrate` — addresses *Tool sprawl on the chat turn*, *Bloated tool descriptions*, and *Near-duplicate tools* (all Major, Dimension 2). Pilot scope should be the `chat-turn` trace, A/B split via a feature flag.
 - `/ratel-decompose-prompt` — addresses *Monolithic system prompt mixing many responsibilities* (Major, Dimension 11). Extract the duplicated runbook and examples into retrievable skills.
 - `/ratel-tune-definitions` — addresses *Tool descriptions missing "when to use"* (Major, Dimension 12). Rewrite descriptions and tighten parameter names / enums for retrieval.
-- `/ratel-langfuse-dashboards` — after the above land, build the Token Cost & Savings and Retrieval Quality dashboards to measure the integration's impact.
+- `/ratel-observability-assessment` — after the above land, build the Token Cost & Savings and Retrieval Quality dashboards to measure the integration's impact.
 
 ## Appendix — inventory snapshot
 

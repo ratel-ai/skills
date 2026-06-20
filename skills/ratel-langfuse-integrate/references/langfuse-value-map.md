@@ -1,40 +1,29 @@
-# Ratel value map — feature → signal → dashboard
+# Langfuse value map — Ratel signals rendered as Langfuse observations and widgets
 
-The canonical mapping from a Ratel capability (shipped or roadmapped) to the observable Langfuse signal it produces and the dashboard widget that visualises it. **Update this file whenever Ratel ships a new feature** — every other skill in the trio reads it.
+This file is the **Langfuse rendering** of the Ratel value map: the exact Langfuse observation names a Ratel-instrumented agent emits, and the concrete widget specs for the Ratel-value dashboard group.
 
-Each row has:
-- **Feature** — the Ratel capability, with the version that shipped (or will ship) it.
-- **Status** — `shipped` / `rc` / `roadmap`. Dashboards for `roadmap` features go in the customer plan's "Out of scope" section, not in the active dashboard list.
-- **Signal** — the Langfuse data that proves the feature is working.
-- **Dashboard** — which dashboard in this catalog owns the widget that surfaces it.
+The **single source of truth** for *what Ratel ships when* — feature → conceptual signal → version/status — is [`../../ratel-observability-assessment/references/ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md). Read that for the versions, the `shipped`/`rc`/`roadmap` status, and the roadmap timeline. This file does not restate the timeline; it renders the shipped signals into Langfuse observation names and widget specs, and leaves roadmap rows as placeholders pointing back to the source map.
 
-## Shipped today (v0.1.6 line)
+Widget specs use the five-field vocabulary from [`widget-cheatsheet.md`](widget-cheatsheet.md). The Ratel→Langfuse observation/metadata mapping is defined in [`ratel-hooks.md`](ratel-hooks.md).
 
-| Feature | Status | Signal | Dashboard |
+## Reserved Ratel observation names (Langfuse)
+
+A Ratel-instrumented agent emits these observation names. They are the Langfuse-side rendering of the core's typed trace stream (ADR-0009); the core emits `search` (with an `origin` field, `direct | agent`), `skill_search`, `get_skill_content`, invoke start/end/error, gateway-tool, upstream-ingest, and auth events. There is no `invoke_skill` — skills are read via `get_skill_content`, not executed.
+
+| Langfuse observation name | Type | From core event | Key metadata |
 | --- | --- | --- | --- |
-| BM25 retrieval (top-K tools + skills via `search_capabilities`) | shipped | `ratel.search_capabilities` observations with `top_k`, `hit_count`, `top_hit_score`, `took_ms` | Retrieval Quality |
-| Replace-by-default pre-filter (top-K injected, full catalog hidden) | shipped | `metadata.replace_mode=true` on `chat-turn` traces; `input_tokens` on root generation drops by 50–85% | Token Cost & Savings |
-| Unified gateway tools (`search_capabilities`, `invoke_tool`, `get_skill_content`) | shipped | `metadata.gateway_origin in [direct, agent]` on every Ratel observation; count by origin | Gateway Origin Split |
-| First-class skills (`SkillCatalog`, ranked via `search_capabilities` skills bucket) | shipped | `ratel.skill_search` observations (skill ids, hit counts) and `ratel.get_skill_content` observations | Skill Retrieval Health |
-| TOON encoding | shipped | `metadata.encoding=toon` vs `json` on `ratel.invoke_tool`; per-call token delta | Token Cost & Savings ("TOON savings" widget) |
-| MCP server ingestion (upstream namespace prefix) | shipped | `ratel.upstream.invoke` observations with `server_name` and `tool_id` | Upstream Health |
-| OAuth 2.1 / PKCE auth flows | shipped | `ratel.auth.refresh`, `ratel.auth.needs`, `ratel.auth.flow_start`, `ratel.auth.flow_end` events | Upstream Health |
-| Trace stream (JSONL sink + future Langfuse sink) | shipped | every observation above exists in Langfuse | foundation for all dashboards |
+| `ratel.search_capabilities` | `tool` | `search` | `top_k`, `hit_count`, `top_hit_score`, `took_ms`, `gateway_origin` |
+| `ratel.invoke_tool` | `tool` | `InvokeStart`/`InvokeEnd`/`InvokeError` | `tool_id`, `encoding` (`toon`/`json`), `gateway_origin`, `ok`/`error_type` |
+| `ratel.skill_search` | `tool` | `skill_search` | `skill_id`s, `hit_count`, `gateway_origin` |
+| `ratel.get_skill_content` | `tool` | `get_skill_content` | `skill_id`, `gateway_origin` |
+| `ratel.upstream.invoke` | `tool` (child of `ratel.invoke_tool`) | `UpstreamInvoke`/`UpstreamError` | `server_name`, `tool_id`, `took_ms` |
+| `ratel.auth.<kind>` | `event` | `AuthRefresh`/`AuthNeeds`/`AuthFlowStart`/`AuthFlowEnd` | `upstream`, `ok` |
 
-Note: `ratel.search_capabilities`, `ratel.skill_search`, `ratel.get_skill_content`, and the `metadata.gateway_origin` key are this suite's Langfuse-side observation/metadata conventions. The core (ADR-0009) emits `search` (with an `origin` field, `direct | agent`), `skill_search`, `get_skill_content`, invoke start/end/error, gateway-tool, upstream-ingest, and auth events. There is no `invoke_skill` — skills are read via `get_skill_content`, not executed.
-
-## Coming soon (next minor versions)
-
-| Feature | Status | Signal it will add | Dashboard impact |
-| --- | --- | --- | --- |
-| LLM-driven suggestions (v0.1.9) | roadmap | `ratel.suggestion.generated` events; `score_name = suggestion_adopted` | New "Suggestion Adoption" dashboard |
-| Multi-agent decomposition hints (v0.1.10) | roadmap | `ratel.decomposition.proposed` events; per-sub-agent catalog sizes | New "Decomposition Outcome" dashboard |
-| Semantic search + hybrid ranking (v0.1.12–v0.1.13) | roadmap | `metadata.ranker = bm25 | semantic | hybrid`; per-ranker top-hit score | Retrieval Quality adds a "Ranker comparison" widget |
-| Re-ranking (v0.1.14 LLM, v0.1.15 XGBoost) | roadmap | `ratel.rerank` observations with `before_order` / `after_order` | Retrieval Quality adds a "Re-rank lift" widget |
-| Chat compaction (v0.2.x) | roadmap | `ratel.compact` observations with token-in / token-out | New "Compaction" dashboard |
-| Memory orchestration (v0.3.x) | roadmap | `ratel.memory.retrieve` observations with hit count, ranking | New "Memory Recall" dashboard |
+`metadata.gateway_origin` (`direct | agent`) and `metadata.replace_mode` (top-K injected vs full catalog) are the two pivots that distinguish "Ratel as a pre-filter" from "agent reaching for the gateway" and gate the token-savings story.
 
 ## Recommended dashboards (Ratel-value group)
+
+Include this group **only if Ratel is in or coming**. Pick the subset backed by what's actually instrumented; skip rather than fake. Roadmap dashboards belong in the plan's "Out of scope" section, footnoted with the target version from the source value map.
 
 ### Token Cost & Savings
 
@@ -52,7 +41,7 @@ Shows Ratel is finding the right tools, not just any tools.
 
 Widgets:
 1. **Top-hit score distribution** — histogram, `metric: metadata.top_hit_score`, filter `observation_name = ratel.search_capabilities`.
-2. **Recall@5 (with ground truth)** — line, avg, `dim: day, tag.feature_flag`, filter `score_name = top_k_recall_at_5`. Only shown when ground-truth labelling is in place (per `ratel-hooks.md`).
+2. **Recall@5 (with ground truth)** — line, avg, `dim: day, tag.feature_flag`, filter `score_name = top_k_recall_at_5`. Only shown when ground-truth labelling is in place (per [`ratel-hooks.md`](ratel-hooks.md)).
 3. **Hit count over time** — line, avg of `metadata.hit_count`, `dim: day`.
 4. **Ranker comparison** (v0.1.12+) — line, avg `metadata.top_hit_score`, `dim: day, metadata.ranker`.
 5. **Re-rank lift** (v0.1.14+) — scatter, `metadata.before_order_top_hit` vs `metadata.after_order_top_hit`, filter `observation_name = ratel.rerank`.
@@ -84,6 +73,10 @@ Widgets:
 2. **Top skills retrieved** — table, count, `dim: metadata.skill_id`, filter `observation_name = ratel.skill_search`. Top 20.
 3. **Skill hit-count distribution** — histogram, `metric: metadata.hit_count`, filter `observation_name = ratel.skill_search`.
 4. **Skill content loads** — single-stat, count, filter `observation_name = ratel.get_skill_content`. The ratio of loads to searches shows how often a retrieved skill is actually read.
+
+## Roadmap placeholders
+
+These dashboards activate when the matching Ratel feature ships. Do not put them in the active dashboard list; footnote them in the plan's "Out of scope" section with the target version from [`../../ratel-observability-assessment/references/ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md).
 
 ### Suggestion Adoption (v0.1.9+)
 

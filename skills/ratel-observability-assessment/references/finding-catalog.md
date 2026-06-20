@@ -1,6 +1,6 @@
 # Finding catalog
 
-The canonical catalog of patterns to look for, the heuristic that detects each one, and the recommended fix. Update this file when new patterns emerge from engagements — it's the only place these live.
+The canonical catalog of patterns to look for, the heuristic that detects each one, and the recommended fix. Vendor-neutral: the failure modes are the same whether the traces live in Langfuse, LangSmith, or anywhere else, so both `*-analyze` skills share this catalog. Where a term differs by vendor, this file uses the vendor-neutral vocabulary from `semantic-conventions.md` (unit of work, step, session); each analyze skill's `query-patterns.md` translates a detection into its vendor's query syntax. Update this file when new patterns emerge from engagements — it's the only place these live.
 
 Each entry has:
 - **Pattern** — short name.
@@ -19,32 +19,32 @@ These break dashboards and analytics. Always fix first.
 
 ### Missing session_id
 
-- **Detection**: any non-trivial fraction of traces (>5%) has empty `session_id`.
+- **Detection**: any non-trivial fraction of units of work (>5%) has empty `session_id`.
 - **Action**: identify the agent entry point that's not setting session_id; cite the spot from the instrumentation plan. Multi-turn analysis is impossible until this is fixed.
-- **Severity**: high if >25% of traces affected; medium otherwise.
+- **Severity**: high if >25% of units affected; medium otherwise.
 
 ### Missing user_id when product is authenticated
 
-- **Detection**: product has logged-in users, but `user_id` is empty on >5% of traces.
+- **Detection**: product has logged-in users, but `user_id` is empty on >5% of units of work.
 - **Action**: trace upstream from the entry point to find where the user context drops. Usually a missing prop in a fan-out.
 - **Severity**: medium.
 
-### Inconsistent trace naming
+### Inconsistent unit-of-work naming
 
-- **Detection**: more than ~5 distinct `trace_name` values in the same `env`, and at least one looks like a function name (`handleChat`, `POST /api/chat`) or a UUID.
-- **Action**: enforce one trace name per externally meaningful unit per `[ratel-langfuse-instrument naming-conventions.md](../../ratel-langfuse-instrument/references/naming-conventions.md)`.
+- **Detection**: more than ~5 distinct unit-of-work names in the same `env`, and at least one looks like a function name (`handleChat`, `POST /api/chat`) or a UUID.
+- **Action**: enforce one name per externally meaningful unit per [`semantic-conventions.md`](semantic-conventions.md).
 - **Severity**: medium (annoys dashboards but doesn't break them).
 
 ### Tool calls landing as untyped events
 
-- **Detection**: top tools in the catalog do not appear when filtering observations by `type = tool`.
-- **Action**: wrap the tool-call site to emit observations of `type: tool` with `name = tool.<tool-id>`. Cite the stack reference.
+- **Detection**: top tools in the catalog do not appear when filtering steps by tool-call kind.
+- **Action**: wrap the tool-call site to emit a typed tool-call step named `tool.<tool-id>`. Cite the stack reference.
 - **Severity**: high (every Ratel-value dashboard + every tool-health dashboard depends on this).
 
 ### Truncated or missing input/output
 
-- **Detection**: >20% of observations have empty input OR empty output.
-- **Action**: instrumentation is collecting structure but not content. Find the recording call and pass the input/output explicitly; don't rely on auto-capture for hand-rolled spans.
+- **Detection**: >20% of steps have empty input OR empty output.
+- **Action**: instrumentation is collecting structure but not content. Find the recording call and pass the input/output explicitly; don't rely on auto-capture for hand-rolled steps.
 - **Severity**: medium.
 
 ---
@@ -54,15 +54,15 @@ These break dashboards and analytics. Always fix first.
 ### Token-heavy turns with huge tool catalogs (RATEL)
 
 - **Category**: ratel
-- **Detection**: `chat-turn` traces where input_tokens > some threshold (5000 is a useful default) AND the tool list in the system prompt or first user message is large (visible in the input field or estimable from observation count of tool-definition load events).
-- **Action**: introduce Ratel as a pre-filter (`replace_mode = true`). Recommend a pilot on the top trace_name only first. Cite expected savings from the benchmark in the Ratel README (~50–85% input token reduction at pool ≥ 180 tools).
+- **Detection**: `chat-turn` units of work where input_tokens > some threshold (5000 is a useful default) AND the tool list in the system prompt or first user message is large (visible in the input field or estimable from the count of tool-definition load steps).
+- **Action**: introduce Ratel as a pre-filter (`replace_mode = true`). Recommend a pilot on the top unit-of-work name only first. Cite expected savings from the benchmark in the Ratel README (~50–85% input token reduction at pool ≥ 180 tools).
 - **Solved by**: shipped, v0.1.6 line.
 - **Severity**: high if it affects >25% of cost; medium otherwise.
 
 ### Tool-payload bloat (RATEL)
 
 - **Category**: ratel
-- **Detection**: tool observations where output > 10kb AND the tool is called many times per session.
+- **Detection**: tool-call steps where output > 10kb AND the tool is called many times per session.
 - **Action**: Ratel's TOON encoding (shipped, v0.1.6 line) handles this systematically — recommend enabling it and tracking the per-call token delta. For output bloat beyond encoding, prune output before recording today; smart pruning (v0.2.x) automates it later.
 - **Solved by**: shipped, v0.1.6 (TOON); v0.2.x (smart pruning).
 - **Severity**: medium.
@@ -70,7 +70,7 @@ These break dashboards and analytics. Always fix first.
 ### System-prompt / context bloat (generic)
 
 - **Category**: generic
-- **Detection**: `chat-turn` generations where input_tokens is high (>5000) BUT the tool catalog is small (≤ ~30 tools) or tool schemas aren't even in the recorded input — i.e. the bloat is a large fixed system prompt and/or accumulating conversation history re-sent every turn, NOT a large tool list. Tell-tale: input is large and roughly constant across turns even when the user message is tiny; output is small (mostly tool-call decisions). This is the honest alternative to the RATEL huge-catalog pattern — do not dress it up as a tool-search opportunity when the catalog is small.
+- **Detection**: `chat-turn` model-calls where input_tokens is high (>5000) BUT the tool catalog is small (≤ ~30 tools) or tool schemas aren't even in the recorded input — i.e. the bloat is a large fixed system prompt and/or accumulating conversation history re-sent every turn, NOT a large tool list. Tell-tale: input is large and roughly constant across turns even when the user message is tiny; output is small (mostly tool-call decisions). This is the honest alternative to the RATEL huge-catalog pattern — do not dress it up as a tool-search opportunity when the catalog is small.
 - **Action**: (1) Enable provider prompt caching on the static system-prompt prefix — for a ~10–22k-token input that is ~90% identical across turns, this is the single biggest cost lever and needs no app rewrite. (2) Trim the system prompt: move long playbooks/prose into tools or retrieved docs the agent pulls on demand. (3) Summarise or window conversation history instead of replaying it verbatim. Cite the per-turn input-token p50/p95 and the input:output ratio.
 - **Severity**: high if it drives >25% of cost; medium otherwise.
 
@@ -78,14 +78,14 @@ These break dashboards and analytics. Always fix first.
 
 - **Category**: generic
 - **Detection**: daily total cost has a >50% jump in the last 24h vs the previous 7-day avg.
-- **Action**: split cost by model and by trace_name to localise. Cite the trace ids of the top 5 spend contributors.
+- **Action**: split cost by model and by unit-of-work name to localise. Cite the trace ids of the top 5 spend contributors.
 - **Severity**: high.
 
 ### Wrong-tier model for a task
 
 - **Category**: generic
-- **Detection**: top-cost trace_names use a frontier model (Opus / GPT-5 / etc.) where a smaller model would do (heuristic: input length is short, output length is short, and the task per the prompt is structurally simple).
-- **Action**: A/B the same trace on a smaller model. Suggest specific candidate (Haiku / mini variant).
+- **Detection**: top-cost unit-of-work names use a frontier model (Opus / GPT-5 / etc.) where a smaller model would do (heuristic: input length is short, output length is short, and the task per the prompt is structurally simple).
+- **Action**: A/B the same unit of work on a smaller model. Suggest specific candidate (Haiku / mini variant).
 - **Severity**: medium.
 
 ---
@@ -118,9 +118,9 @@ These break dashboards and analytics. Always fix first.
 ### Retry storms
 
 - **Category**: generic
-- **Detection**: traces with >5 invocations of the same `tool_id` within 10 seconds.
+- **Detection**: units of work with >5 invocations of the same `tool_id` within 10 seconds.
 - **Action**: cite trace ids. Usually a missing retry budget or a tool returning a recoverable error that the agent doesn't handle. Recommend a tool-level retry budget.
-- **Severity**: high if >5% of traces affected.
+- **Severity**: high if >5% of units affected.
 
 ---
 
@@ -129,21 +129,21 @@ These break dashboards and analytics. Always fix first.
 ### Flat sub-agent structure (generic)
 
 - **Category**: generic
-- **Detection**: traces with multiple `agent_role` metadata values but no parent-child nesting (siblings only).
-- **Action**: parent context isn't carried across the handoff. Cite the stack reference for `propagate_attributes` / equivalent.
+- **Detection**: units of work with multiple `agent_role` metadata values but no parent-child nesting (siblings only).
+- **Action**: parent context isn't carried across the handoff. Cite the stack reference for context propagation across the boundary.
 - **Severity**: medium.
 
 ### Runaway sub-agent loop
 
 - **Category**: generic
-- **Detection**: same sub-agent role appears >10 times in a single trace.
+- **Detection**: same sub-agent role appears >10 times in a single unit of work.
 - **Action**: probable infinite-loop / max-step misconfiguration. Cite trace ids.
 - **Severity**: high.
 
 ### Decomposition opportunity (RATEL, roadmap)
 
 - **Category**: ratel (roadmap)
-- **Detection**: single-agent traces with very large tool catalogs (>50 tools) AND clear clustering of tool calls into groups across sessions.
+- **Detection**: single-agent units of work with very large tool catalogs (>50 tools) AND clear clustering of tool calls into groups across sessions.
 - **Action**: roadmap pointer to multi-agent decomposition hints (v0.1.10). Today: manually identify the cluster and propose a supervisor / sub-agent split.
 - **Solved by**: v0.1.10.
 - **Severity**: medium.
@@ -168,8 +168,8 @@ These break dashboards and analytics. Always fix first.
 
 ### No evaluation scores emitted (generic)
 
-- **Detection**: `listScores` returns zero rows over the window despite traffic existing. No online or annotation scores wired.
-- **Action**: wire at least one cheap online score (e.g. an LLM-judge on task completion, or a deterministic check) so quality regressions are visible. Without it, the recall/accuracy/score-regression patterns in this catalog cannot be evaluated at all — every quality finding is blind. Point back to `/ratel-langfuse-dashboards` and `/ratel-langfuse-instrument` for score setup.
+- **Detection**: a scores query returns zero rows over the window despite traffic existing. No online or annotation scores wired.
+- **Action**: wire at least one cheap online score (e.g. an LLM-judge on task completion, or a deterministic check) so quality regressions are visible. Without it, the recall/accuracy/score-regression patterns in this catalog cannot be evaluated at all — every quality finding is blind. Point back to the vendor `*-integrate` skill for score setup.
 - **Severity**: medium (gates all quality analysis, but not load-bearing for cost/latency dashboards).
 
 ### Prompt drift
@@ -193,14 +193,14 @@ These break dashboards and analytics. Always fix first.
 ### Generation usage missing
 
 - **Category**: generic
-- **Detection**: >10% of generations have empty token usage.
-- **Action**: provider integration isn't capturing usage. Most commonly: wrong import (`from openai import OpenAI` instead of `from langfuse.openai import openai`).
+- **Detection**: >10% of model-calls have empty token usage.
+- **Action**: provider integration isn't capturing usage. Most commonly: wrong import (e.g. `from openai import OpenAI` instead of the vendor's instrumented wrapper).
 - **Severity**: medium (blocks cost dashboards).
 
-### Model swap mid-trace
+### Model swap mid-unit-of-work
 
 - **Category**: generic
-- **Detection**: a single trace contains generations with multiple distinct `model_id` values.
+- **Detection**: a single unit of work contains model-calls with multiple distinct `model_id` values.
 - **Action**: usually a fallback / cascade firing. Worth surfacing — high model swap rates indicate frontier-model rate limiting or a bug.
 - **Severity**: low.
 
@@ -223,3 +223,9 @@ These break dashboards and analytics. Always fix first.
 - **Action**: roll back the suggested catalog, file a Ratel issue with the trace ids.
 - **Solved by**: v0.1.9 with eval coverage (v0.1.11).
 - **Severity**: medium.
+
+---
+
+## Ratel-version mapping
+
+Every Ratel-category finding above cites a "Solved by" version. Those versions are the conceptual signals catalogued in [`ratel-value-map.md`](ratel-value-map.md) — the single source of truth for what Ratel ships when. When a finding's fix maps to a roadmap feature, pull the target version from that file so this catalog stays current as Ratel ships.
