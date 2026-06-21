@@ -16,13 +16,13 @@ allowed-tools:
 
 The first conversation with a partner startup is rarely "wire up Ratel." It is "show us you understand our agent." This skill is the front door: it reads the codebase, runs every dimension in the assessment catalog, and produces a markdown report the partner could (and would) share internally — whether or not they end up using Ratel.
 
-The deliverable is a polished, evidence-led report at `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.md`. The report carries credibility because every finding cites a file path, a line range, or a concrete count. It carries narrative because the Ratel-relevant findings cluster into a "Where Ratel fits" section that ties them to specific shipped features and roadmap versions. It carries momentum because it ends with conditional pointers to the right follow-up skill from the suite ([`/ratel-langfuse-instrument`](../ratel-langfuse-instrument/SKILL.md), [`/ratel-langfuse-dashboards`](../ratel-langfuse-dashboards/SKILL.md), [`/ratel-langfuse-analyze`](../ratel-langfuse-analyze/SKILL.md), [`/ratel-integrate`](../ratel-integrate/SKILL.md), [`/ratel-decompose-prompt`](../ratel-decompose-prompt/SKILL.md), [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md)).
+The deliverable is a polished, evidence-led report at `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.md`. The report carries credibility because every finding cites a file path, a line range, or a concrete count. It carries narrative because the Ratel-relevant findings cluster into a "Where Ratel fits" section that ties them to specific shipped features and roadmap versions. It carries momentum because it ends with conditional pointers to the right follow-up skill from the suite ([`/ratel-observability-assessment`](../ratel-observability-assessment/SKILL.md), [`/ratel-integrate`](../ratel-integrate/SKILL.md), [`/ratel-decompose-prompt`](../ratel-decompose-prompt/SKILL.md), [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md)).
 
 This skill complements the rest of the suite:
 
 - **Runs before** the other four. It is the only one safe to fire on a cold repo with no setup from the partner.
 - **Routes into** the rest. The "Recommended next steps" section names which follow-up is appropriate given what was found.
-- **Does not duplicate** the catalogs of the others. Ratel angles point to [`../ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md); naming references point to [`../ratel-langfuse-instrument/references/naming-conventions.md`](../ratel-langfuse-instrument/references/naming-conventions.md); the trace-event mapping comes from [`../ratel-langfuse-instrument/references/ratel-hooks.md`](../ratel-langfuse-instrument/references/ratel-hooks.md).
+- **Does not duplicate** the catalogs of the others. Ratel angles point to [`../ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md); naming references point to [`../ratel-observability-assessment/references/semantic-conventions.md`](../ratel-observability-assessment/references/semantic-conventions.md).
 
 ## Philosophy
 
@@ -70,12 +70,12 @@ Launch one **Explore** agent (or do it directly for small repos) with a single, 
 
 Keep the inventory inside the analysis context — it is not a deliverable. The report cites it; it does not include it.
 
-### Step 3 — Detect observability and probe Langfuse if reachable
+### Step 3 — Detect observability and probe the vendor if reachable
 
 Two checks:
 
-1. **Static**: are any of the following present? Langfuse SDK in manifest; Langfuse env vars in `.env*` / sample envs / docker-compose; Langsmith SDK; OTel exporter pointing somewhere agent-shaped; OpenInference / OpenLLMetry instrumentation.
-2. **Live (best effort)**: if `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are reachable and the Langfuse MCP server is configured for this session, attempt one cheap aggregate query (e.g., trace count in the last 24h on the most recent trace_name). If it returns data, fetch a small sample (≤50 traces) and use it to enrich the relevant findings (tool surface count, error rate, latency). If the MCP call fails for any reason — auth, network, no project, no traces — **fall back silently** to static-only. Do not surface the failure as a finding; it is not the partner's bug.
+1. **Static**: are any of the following present? Langfuse SDK in manifest; Langfuse env vars in `.env*` / sample envs / docker-compose; LangSmith SDK; OTel exporter pointing somewhere agent-shaped; OpenInference / OpenLLMetry instrumentation.
+2. **Live (best effort)**: if any observability vendor (Langfuse, LangSmith, ...) is wired and reachable — credentials present and the vendor's MCP server is configured for this session — attempt one cheap aggregate query (e.g., for Langfuse: trace count in the last 24h on the most recent trace_name). If it returns data, fetch a small sample (≤50 traces/runs) and use it to enrich the relevant findings (tool surface count, error rate, latency). If the call fails for any reason — auth, network, no project, no traces — **fall back silently** to static-only. Do not surface the failure as a finding; it is not the partner's bug.
 
 The catalog distinguishes between findings that need live data ("Untyped tool observations" — observable only with traces) and findings that don't ("Tool sprawl by count" — observable statically). Static-only runs simply skip the live-data findings; they don't degrade the rest.
 
@@ -86,7 +86,7 @@ Walk every dimension in [`references/assessment-catalog.md`](references/assessme
 - Apply the detection heuristic against the inventory from Step 2 (and the live sample from Step 3 if available).
 - Decide severity per the rubric: Critical / Major / Minor / Info.
 - Attach evidence: file path + line range, count, or quoted snippet.
-- If the catalog entry has a Ratel angle, attach it as a one-line tag pointing to the relevant Ratel feature/version from [`../ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md).
+- If the catalog entry has a Ratel angle, attach it as a one-line tag pointing to the relevant Ratel feature/version from [`../ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md).
 
 Do not invent dimensions not in the catalog. If you spot something genuinely novel, note it inline but mark it `dimension: ad-hoc` in the report so the catalog can absorb it later.
 
@@ -129,9 +129,7 @@ The "Recommended next steps" section is conditional on findings. Never list a sk
 
 | If the assessment found... | Point to |
 | --- | --- |
-| Any Observability finding (`Weak` or `Missing` dimension) | `/ratel-langfuse-instrument` |
-| Observability is `Strong` *or* `Adequate` but no dashboards mentioned | `/ratel-langfuse-dashboards` |
-| Observability is `Strong` *and* live data was reachable | `/ratel-langfuse-analyze` |
+| Any Observability finding (`Weak` or `Missing`), OR observability present and you want the funnel | `/ratel-observability-assessment` |
 | Any Tool surface finding tagged with a Ratel angle | `/ratel-integrate` |
 | Decomposition / topology Ratel-angle finding present | `/ratel-integrate` (with a note that decomposition support is roadmap v0.1.10) |
 | Prompt decomposition finding (`Weak` or `Missing` dimension) | `/ratel-decompose-prompt` |
@@ -159,11 +157,10 @@ If the codebase is an agent but the catalog finds *nothing worse than Info* acro
 ## Reference files
 
 - [`references/assessment-catalog.md`](references/assessment-catalog.md) — the twelve dimensions, detection heuristics, severity rubrics, recommendations, and Ratel angles. The load-bearing file.
-- [`references/stack-detection.md`](references/stack-detection.md) — quick playbook for classifying the agent stack; cross-links to `/ratel-langfuse-instrument`'s per-stack files for deeper detail.
+- [`references/stack-detection.md`](references/stack-detection.md) — quick playbook for classifying the agent stack; cross-links to `/ratel-observability-assessment`'s per-stack detail for deeper analysis.
 - [`references/report-template.md`](references/report-template.md) — canonical report structure and a worked example.
 
 Reads from (does not duplicate):
 
-- [`../ratel-langfuse-instrument/references/naming-conventions.md`](../ratel-langfuse-instrument/references/naming-conventions.md) — shared trace/observation/tag/metadata vocabulary
-- [`../ratel-langfuse-instrument/references/ratel-hooks.md`](../ratel-langfuse-instrument/references/ratel-hooks.md) — Ratel trace events → Langfuse observation mapping
-- [`../ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md) — the single source of truth for Ratel feature → observable signal → version
+- [`../ratel-observability-assessment/references/semantic-conventions.md`](../ratel-observability-assessment/references/semantic-conventions.md) — shared vendor-neutral span/session/tag/attribute vocabulary
+- [`../ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md) — the single source of truth for Ratel feature → observable signal → version

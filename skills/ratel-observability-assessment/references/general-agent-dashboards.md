@@ -1,6 +1,6 @@
 # General agent-health dashboard catalog
 
-Stack-agnostic dashboards. Useful for any agent built on Langfuse, regardless of whether Ratel is in the picture. Pick the subset that matches what the customer's instrumentation actually emits.
+Stack-agnostic dashboards. Useful for any instrumented agent, regardless of the observability vendor or whether Ratel is in the picture — the vendor `*-integrate` skill renders these into concrete widgets. Pick the subset that matches what the customer's instrumentation actually emits.
 
 ## 1. Latency & Cost Overview
 

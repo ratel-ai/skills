@@ -99,7 +99,7 @@ langfuse_get_metrics(
 )
 ```
 
-This is the single most valuable query in a Ratel A/B engagement. If `feature_flag` isn't a populated tag, the customer hasn't completed the engagement setup — skip the comparison and add a finding pointing back to `/ratel-langfuse-instrument` for tag setup.
+This is the single most valuable query in a Ratel A/B engagement. If `feature_flag` isn't a populated tag, the customer hasn't completed the engagement setup — skip the comparison and add a finding pointing back to `/ratel-langfuse-integrate` for tag setup.
 
 ## Tool usage and errors
 
@@ -139,4 +139,4 @@ Limit to one or two of these per finding — fetching trace bodies is the most e
 - **Cache the tool list per session.** Don't call `search_capabilities` for every query — the MCP server's surface is stable for the session.
 - **Page large result sets.** If a list call returns 1000+ results and `has_more`, paginate. Truncated drill-downs miss outliers.
 - **Don't query `cloud.langfuse.com` directly via WebFetch.** It's authenticated; the MCP server is the only sanctioned path.
-- **Score names must match what's been wired.** The catalog assumes `tool_selection_accuracy`, `top_k_recall_at_5`, etc., but the actual customer may have used different names. Read `.ratel/ratel-langfuse-instrument.md` to confirm before filtering.
+- **Score names must match what's been wired.** The catalog assumes `tool_selection_accuracy`, `top_k_recall_at_5`, etc., but the actual customer may have used different names. Read `.ratel/ratel-langfuse-integrate.md` to confirm before filtering.

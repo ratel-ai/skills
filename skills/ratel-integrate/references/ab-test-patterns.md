@@ -1,6 +1,6 @@
 # A/B test patterns for a Ratel rollout
 
-Three strategies. Pick one per pilot; document the pick + the customer's flag/split mechanism in the plan. Whatever the strategy, every trace must land in Langfuse with a `feature_flag` tag valued either `tool_pool=full` (control) or `tool_pool=ratel` (treatment) — that tag is what the dashboards in [`ratel-langfuse-dashboards/references/ratel-value-map.md`](../../ratel-langfuse-dashboards/references/ratel-value-map.md) split on.
+Three strategies. Pick one per pilot; document the pick + the customer's flag/split mechanism in the plan. Whatever the strategy, every trace must land in Langfuse with a `feature_flag` tag valued either `tool_pool=full` (control) or `tool_pool=ratel` (treatment) — that tag is what the dashboards in [`ratel-langfuse-integrate/references/langfuse-value-map.md`](../../ratel-langfuse-integrate/references/langfuse-value-map.md) split on.
 
 ## Pattern 1 — Live feature flag (preferred default)
 

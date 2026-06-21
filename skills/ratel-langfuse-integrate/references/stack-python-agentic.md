@@ -32,7 +32,7 @@ from crewai.tracking import enable_tracing
 enable_tracing("langfuse")  # built-in adapter in current versions
 ```
 
-CrewAI's `Task` and `Agent` objects map to spans named after their role and goal. The plan should specify role names that match the [`naming-conventions.md`](naming-conventions.md) format (`research-agent`, not `Researcher Person With Long Title`).
+CrewAI's `Task` and `Agent` objects map to spans named after their role and goal. The plan should specify role names that match the [`langfuse-mapping.md`](langfuse-mapping.md) format (`research-agent`, not `Researcher Person With Long Title`).
 
 For tools (`@tool` decorated):
 

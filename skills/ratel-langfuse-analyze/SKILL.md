@@ -1,7 +1,7 @@
 ---
 name: ratel-langfuse-analyze
 description: |
-  Read a customer's live Langfuse traces, sessions, and scores through the Langfuse MCP server, look for issues and improvement opportunities, and write a findings report split into Ratel-flavored improvements (we fix this by integrating or deepening Ratel) and stack-agnostic low-hanging fruit (anyone could fix it; we earn trust by spotting it). Use whenever the user asks "look at our Langfuse traces", "what's wrong with our agent", "find improvements", "analyze recent sessions", "review the partner's traces this week", "any low-hanging fruit in the data", or invokes `/ratel-langfuse-analyze`. Trigger on phrases like "scan the dashboard", "go through the traces", "review their observability", "dig into the failures", "what's the agent doing wrong" — even if the user doesn't say "skill" or "ratel-langfuse-analyze" by name. Assumes the Langfuse MCP server is reachable (set up during `/ratel-langfuse-instrument`). Be honest when the data is clean — don't manufacture findings.
+  Read a customer's live Langfuse traces, sessions, and scores through the Langfuse MCP server, look for issues and improvement opportunities, and write a findings report split into Ratel-flavored improvements (we fix this by integrating or deepening Ratel) and stack-agnostic low-hanging fruit (anyone could fix it; we earn trust by spotting it). Use whenever the user asks "look at our Langfuse traces", "what's wrong with our agent", "find improvements", "analyze recent sessions", "review the partner's traces this week", "any low-hanging fruit in the data", or invokes `/ratel-langfuse-analyze`. Trigger on phrases like "scan the dashboard", "go through the traces", "review their observability", "dig into the failures", "what's the agent doing wrong" — even if the user doesn't say "skill" or "ratel-langfuse-analyze" by name. This is the live-analysis follow-up that `/ratel-langfuse-integrate` routes to, reached after `/ratel-observability-assessment` selected Langfuse. Assumes the Langfuse MCP server is reachable (set up during `/ratel-langfuse-integrate`). Be honest when the data is clean — don't manufacture findings. Writes a markdown findings report to `<repo>/.ratel/` and does not edit agent code.
 allowed-tools:
   - Bash
   - Read
@@ -25,7 +25,7 @@ A finding is good if:
 2. It says **what to do**, not just what's wrong. Vague findings ("error rate is high") waste partner time.
 3. It says **why** the fix matters — in one sentence the customer's PM can read.
 4. It's tagged **Ratel** or **generic**. Mixing them hides the value story.
-5. If it's a Ratel-flavored finding, it cites the Ratel version that solves it (today: `v0.1.6` line; future: pull from [`ratel-langfuse-dashboards/references/ratel-value-map.md`](../ratel-langfuse-dashboards/references/ratel-value-map.md)).
+5. If it's a Ratel-flavored finding, it cites the Ratel version that solves it (today: `v0.1.6` line; future: pull from [`ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md)).
 
 A finding is bad if:
 - It's a restatement of a dashboard ("p95 latency is 4.2s"). Dashboards already show that.
@@ -45,7 +45,7 @@ Confirm the Langfuse MCP server is registered and reachable:
 
 If unreachable, fail fast:
 
-> Langfuse MCP server not detected. Run `/ratel-langfuse-instrument` first (or wire it up manually per its setup section).
+> Langfuse MCP server not detected. Run `/ratel-langfuse-integrate` first (or wire it up manually per its setup section).
 
 Do not proceed without MCP access. This skill is useless without live data.
 
@@ -83,7 +83,7 @@ Read inputs and outputs. Don't just look at structure — what did the agent act
 
 ### Step 5 — Pattern-match against the finding catalog
 
-Open [`references/finding-catalog.md`](references/finding-catalog.md). For each pattern: check whether the data the customer has emitted matches the detection heuristic. If yes, emit a finding using the pattern's template.
+Open [`../ratel-observability-assessment/references/finding-catalog.md`](../ratel-observability-assessment/references/finding-catalog.md) (the vendor-neutral catalog, shared with `ratel-langsmith-analyze`). For each pattern: check whether the data the customer has emitted matches the detection heuristic. If yes, emit a finding using the pattern's template.
 
 Don't iterate the catalog blindly — if Ratel isn't in the system, skip the entire Ratel section. If there are no scores, skip score-related patterns. The catalog is a sieve, not a checklist.
 
@@ -111,7 +111,7 @@ Group findings by severity (high → low) within each category (ratel, generic).
 
 ### Step 7 — Write the report
 
-Output to `<repo>/.ratel/langfuse-analysis-<YYYY-MM-DD>.md`. Reports accumulate (one per run); don't overwrite previous ones. The directory should be the same one `/ratel-langfuse-instrument` writes to.
+Output to `<repo>/.ratel/langfuse-analysis-<YYYY-MM-DD>.md`. Reports accumulate (one per run); don't overwrite previous ones. The directory should be the same one `/ratel-langfuse-integrate` writes to.
 
 Structure:
 
@@ -156,5 +156,5 @@ Equally — if traffic is too thin to draw conclusions (fewer than ~20 traces in
 
 ## Reference files
 
-- [`references/finding-catalog.md`](references/finding-catalog.md) — the canonical catalog of detection patterns + recommended fixes + Ratel mapping
-- [`references/mcp-query-patterns.md`](references/mcp-query-patterns.md) — vetted Langfuse MCP query shapes (aggregate, drill-down, sample)
+- [`../ratel-observability-assessment/references/finding-catalog.md`](../ratel-observability-assessment/references/finding-catalog.md) — the canonical, vendor-neutral catalog of detection patterns + recommended fixes + Ratel mapping; shared with `ratel-langsmith-analyze`
+- [`references/mcp-query-patterns.md`](references/mcp-query-patterns.md) — vetted Langfuse MCP query shapes (aggregate, drill-down, sample); Langfuse-specific, stays local

@@ -1,10 +1,23 @@
-# Naming, tagging, and metadata vocabulary
+# Langfuse mapping — render the generic conventions onto Langfuse primitives
 
-This file is the **canonical vocabulary** every skill in the Langfuse trio assumes. `/ratel-langfuse-instrument` writes it into the customer's plan. `/ratel-langfuse-dashboards` builds widgets on these exact names. `/ratel-langfuse-analyze` filters and groups by these exact keys. If any of them drift, the trio falls apart.
+This file is the **Langfuse rendering** of the vendor-neutral semantic conventions. The *rationale* — why a unit of work is a trace, why a step is an observation, why a session is a thread, what belongs in tags vs metadata — lives once in [`../../ratel-observability-assessment/references/semantic-conventions.md`](../../ratel-observability-assessment/references/semantic-conventions.md). Read that first. This file only answers: **given the generic vocabulary, what is the exact Langfuse primitive, type, and key to use?**
 
-Do not re-invent. If a customer pushes back on a name, the answer is "change it everywhere, including the dashboard plan and the analysis filters" — not "fine, we'll call it something else in this one place."
+Do not re-derive the naming rules here. If the generic conventions change, change them there and re-render here.
 
-## Trace naming
+## The mapping at a glance
+
+| Generic concept | Langfuse primitive | How to set it |
+| --- | --- | --- |
+| Unit of work | **trace** | one trace per externally meaningful unit; `name` = the use case |
+| Step (agent role) | **observation, `type: span`** | nest to reflect delegation, not source layout |
+| Step (tool call) | **observation, `type: tool`** | tool id in `name`, args in `input` |
+| Step (model call) | **observation, `type: generation`** | model family in `name`, full id in `metadata.model_id` |
+| Session / thread | **`session_id` on the trace** | set early, `propagate_attributes(session_id=...)` |
+| User | **`user_id` on the trace** | stable opaque id, propagated like `session_id` |
+| Coarse pivot dimension | **tag** | low-cardinality, ~6 max per trace |
+| Fine-grained attribute | **`metadata.<key>`** | high-cardinality allowed; per-observation |
+
+## Trace naming (unit of work → Langfuse `name`)
 
 One trace = one externally meaningful unit of work. Name it after the **use case**, not the function that runs it.
 
@@ -19,11 +32,11 @@ One trace = one externally meaningful unit of work. Name it after the **use case
 
 Avoid: `POST_/api/chat`, `handler-fn`, `run`, `process`. They tell you nothing at the dashboard level.
 
-## Observation naming
+## Observation naming (step kind → Langfuse observation type)
 
-One observation = one step inside a trace. Three categories, three naming rules:
+One observation = one step inside a trace. Three step kinds, three Langfuse observation types, three naming rules.
 
-### Agent role observations (`type: span`)
+### Agent role steps → `type: span`
 
 ```
 supervisor
@@ -34,7 +47,7 @@ critic-agent
 
 Lowercase, kebab-case, role-as-noun. If the same agent type can run multiple times in a turn (e.g., critic loop), suffix with iteration: `critic-agent#1`, `critic-agent#2`.
 
-### Tool observations (`type: tool`)
+### Tool steps → `type: tool`
 
 ```
 tool.<tool-id>
@@ -42,7 +55,7 @@ tool.<tool-id>
 
 Where `<tool-id>` is the **stable id** the agent framework uses, not the friendly label. For MCP tools, include the upstream namespace: `tool.upstream__filesystem__read_file`.
 
-When Ratel is present and the agent calls Ratel's unified gateway tools:
+When Ratel is present and the agent calls Ratel's unified gateway tools, the observation names are reserved (see [`langfuse-value-map.md`](langfuse-value-map.md) and [`ratel-hooks.md`](ratel-hooks.md)):
 
 ```
 ratel.search_capabilities
@@ -51,9 +64,9 @@ ratel.skill_search
 ratel.get_skill_content
 ```
 
-These are special and treated separately in the Ratel hooks reference. `ratel.skill_search` and `ratel.get_skill_content` cover first-class skills (loaded, not executed — there is no `invoke_skill`). The `metadata.gateway_origin` key maps the core's underlying `origin` field (`direct | agent`).
+`ratel.skill_search` and `ratel.get_skill_content` cover first-class skills (loaded, not executed — there is no `invoke_skill`). The `metadata.gateway_origin` key maps the core's underlying `origin` field (`direct | agent`).
 
-### Model observations (`type: generation`)
+### Model steps → `type: generation`
 
 ```
 llm.<model-shortname>
@@ -61,7 +74,7 @@ llm.<model-shortname>
 
 Examples: `llm.sonnet-4-6`, `llm.gpt-4o`, `llm.haiku-4-5`. The full provider model id (e.g., `claude-sonnet-4-6-20260101`) belongs in `metadata.model_id`, not in the name. Naming the observation by model family makes "cost by model" pivots trivial; naming it by exact id fragments dashboards every time a snapshot date rolls.
 
-## Sessions
+## Sessions → `session_id` + `propagate_attributes`
 
 `session_id` lives on the trace. Source it from the most stable identifier the system already has:
 
@@ -73,9 +86,9 @@ Examples: `llm.sonnet-4-6`, `llm.gpt-4o`, `llm.haiku-4-5`. The full provider mod
 | Multi-step agentic run with a run id | the run id |
 | Nothing stable available | generate at the entry point, attach to the trace AND store wherever you'd normally keep request state |
 
-Critical: set `session_id` *as early as possible* and propagate it (Langfuse v4: `propagate_attributes(session_id=...)`). Setting it only on the trace and not propagating means child observations don't carry it, which breaks session-level analysis.
+Critical: set `session_id` *as early as possible* and propagate it. In Langfuse v4 this is `propagate_attributes(session_id=...)` — setting it only on the trace and not propagating means child observations don't carry it, which breaks session-level analysis.
 
-## User id
+## User id → `user_id`
 
 `user_id` lives on the trace and propagates the same way as `session_id`. Source it from the authenticated user where available. **Do not put PII (email, name) in `user_id`** — use a stable opaque id. If the system is anonymous, leave `user_id` empty rather than faking one.
 
@@ -117,9 +130,10 @@ Conditional keys (set when the matching feature is in play):
 | `prompt_arm` | running a prompt A/B | arm id |
 | `ground_truth_tool_id` | eval traces with labels | the canonical correct tool id (for accuracy scoring) |
 
-## Don'ts
+## Don'ts (Langfuse-specific failure modes)
 
-- **Don't put dynamic content in observation names.** `tool.read_file(/etc/passwd)` is a name no dashboard can group on. The name is `tool.read_file`; the argument goes in input.
-- **Don't reuse names across types.** If `supervisor` is a span, never use it as a tool name. Dashboards filter by type + name; reusing names produces silent overlap.
+- **Don't put dynamic content in observation names.** `tool.read_file(/etc/passwd)` is a name no dashboard can group on. The name is `tool.read_file`; the argument goes in `input`.
+- **Don't reuse names across types.** If `supervisor` is a span, never use it as a tool name. Langfuse dashboards filter by type + name; reusing names produces silent overlap.
 - **Don't tag with anything that can be a user input.** Tags are not search; they're pivots.
 - **Don't skip `session_id` on observations.** Set it on the trace and propagate — never inherit-by-magic. Langfuse v4 will not back-fill if you forget.
+- **Don't capture tool calls as untyped `event` observations.** A tool call captured as a generic `event` with the tool name in `metadata` blocks the entire native tool-call dashboard surface. Use `type: tool` with the id in `name`.

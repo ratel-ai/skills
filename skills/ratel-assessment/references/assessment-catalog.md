@@ -2,7 +2,7 @@
 
 Twelve dimensions. For each: what it covers, how to score it, the concrete findings that surface under it, and the Ratel angle where one exists.
 
-**Ratel angles point to entries in [`../../ratel-langfuse-dashboards/references/ratel-value-map.md`](../../ratel-langfuse-dashboards/references/ratel-value-map.md)** — that file is the single source of truth for "what Ratel ships when." Do not invent angles here; if a finding feels Ratel-relevant but doesn't match a value-map entry, leave the Ratel angle off.
+**Ratel angles point to entries in [`../../ratel-observability-assessment/references/ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md)** — that file is the single source of truth for "what Ratel ships when." Do not invent angles here; if a finding feels Ratel-relevant but doesn't match a value-map entry, leave the Ratel angle off.
 
 **Severity tags throughout**:
 
@@ -51,7 +51,7 @@ What it covers: how the agent is structured — single loop, supervisor + worker
 
 *Recommendation*: thread `session_id`, `user_id`, and a `parent_role` through every handoff. The Langfuse propagation pattern (`propagate_attributes(...)`) handles this once observability is wired.
 
-*Ratel angle*: none directly — fix in [`/ratel-langfuse-instrument`](../../ratel-langfuse-instrument/SKILL.md).
+*Ratel angle*: none directly — fix in [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md).
 
 ### 1.c Topology is too deep to debug
 
@@ -185,7 +185,7 @@ What it covers: prompt size, externalization, versioning, retrieval / RAG, conve
 
 *Recommendation*: externalize prompts to files (or to Langfuse Prompt Management). Attach `prompt_version` as observation metadata.
 
-*Ratel angle*: none; this is a [`/ratel-langfuse-instrument`](../../ratel-langfuse-instrument/SKILL.md) follow-up.
+*Ratel angle*: none; this is a [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md) follow-up.
 
 ### 3.c No retrieval where retrieval is obvious
 
@@ -340,7 +340,7 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 - SDK presence — Langfuse, Langsmith, OTel, OpenInference, OpenLLMetry, Helicone.
 - Env vars and init sites.
-- Naming consistency vs the vocabulary in [`../../ratel-langfuse-instrument/references/naming-conventions.md`](../../ratel-langfuse-instrument/references/naming-conventions.md).
+- Naming consistency vs the vocabulary in [`../../ratel-observability-assessment/references/semantic-conventions.md`](../../ratel-observability-assessment/references/semantic-conventions.md).
 - Session-id sourcing and propagation.
 - Tool-call observation typing (`type: tool` vs untyped `event`).
 - Score wiring (any `score()` calls or ingestion of eval-driven scores).
@@ -354,9 +354,9 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Severity*: Critical for any agent in production; Major otherwise.
 
-*Recommendation*: wire Langfuse via [`/ratel-langfuse-instrument`](../../ratel-langfuse-instrument/SKILL.md).
+*Recommendation*: wire Langfuse via [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md).
 
-*Ratel angle*: routes to `/ratel-langfuse-instrument`.
+*Ratel angle*: routes to `/ratel-observability-assessment`.
 
 ### 7.b Observability wired but no session_id
 
@@ -366,7 +366,7 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Recommendation*: set `session_id` at the entry point and propagate through sub-agents.
 
-*Ratel angle*: matches the "Sessions" section of [`../../ratel-langfuse-instrument/references/naming-conventions.md`](../../ratel-langfuse-instrument/references/naming-conventions.md). Route to `/ratel-langfuse-instrument`.
+*Ratel angle*: matches the "Sessions" section of [`../../ratel-observability-assessment/references/semantic-conventions.md`](../../ratel-observability-assessment/references/semantic-conventions.md). Route to `/ratel-observability-assessment`.
 
 ### 7.c Tool calls captured as untyped events
 
@@ -376,7 +376,7 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Recommendation*: re-wrap tool calls as `type: tool` observations. One-line fix per call site once Langfuse v4 patterns are in place.
 
-*Ratel angle*: same Langfuse hygiene pattern; route to `/ratel-langfuse-instrument`.
+*Ratel angle*: same Langfuse hygiene pattern; route to `/ratel-observability-assessment`.
 
 ### 7.d Inconsistent observation naming
 
@@ -384,9 +384,9 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Severity*: Minor on its own; Major if it cascades into dashboards being unreadable.
 
-*Recommendation*: adopt the vocabulary in [`../../ratel-langfuse-instrument/references/naming-conventions.md`](../../ratel-langfuse-instrument/references/naming-conventions.md). One-pass rename.
+*Recommendation*: adopt the vocabulary in [`../../ratel-observability-assessment/references/semantic-conventions.md`](../../ratel-observability-assessment/references/semantic-conventions.md). One-pass rename.
 
-*Ratel angle*: routes to `/ratel-langfuse-instrument`.
+*Ratel angle*: routes to `/ratel-observability-assessment`.
 
 ### 7.e Observability wired but never analyzed
 
@@ -394,9 +394,9 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Severity*: Minor — the data is there, the loop just isn't closed.
 
-*Recommendation*: build the dashboards via `/ratel-langfuse-dashboards`; review live data via `/ratel-langfuse-analyze`.
+*Recommendation*: build the dashboards via `/ratel-observability-assessment`; review live data via `/ratel-langfuse-analyze`.
 
-*Ratel angle*: routes to `/ratel-langfuse-dashboards` and `/ratel-langfuse-analyze`.
+*Ratel angle*: routes to `/ratel-observability-assessment` and `/ratel-langfuse-analyze`.
 
 ---
 
@@ -484,7 +484,7 @@ What it covers: presence of an eval suite, ground truth, CI gates, regression de
 
 *Severity*: Minor on its own; Major in combination with tool sprawl.
 
-*Recommendation*: label `ground_truth_tool_id` per fixture per the metadata vocabulary in [`../../ratel-langfuse-instrument/references/naming-conventions.md`](../../ratel-langfuse-instrument/references/naming-conventions.md). Enables retrieval-quality scoring.
+*Recommendation*: label `ground_truth_tool_id` per fixture per the metadata vocabulary in [`../../ratel-observability-assessment/references/semantic-conventions.md`](../../ratel-observability-assessment/references/semantic-conventions.md). Enables retrieval-quality scoring.
 
 *Ratel angle*: matches the Retrieval Quality dashboard's `recall@5` widget — unlocks once ground truth exists.
 
@@ -640,6 +640,6 @@ If the dimension has *no signal at all in the codebase* (e.g., no observability 
 
 ## Catalog maintenance
 
-When Ratel ships a new feature, the corresponding row goes in [`../../ratel-langfuse-dashboards/references/ratel-value-map.md`](../../ratel-langfuse-dashboards/references/ratel-value-map.md) first. Only then does this catalog get an updated Ratel-angle line. Two reasons: (1) the value map is the source of truth, (2) a Ratel angle in the assessment that doesn't yet have a dashboard widget produces an unfinishable engagement.
+When Ratel ships a new feature, the corresponding row goes in [`../../ratel-observability-assessment/references/ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md) first. Only then does this catalog get an updated Ratel-angle line. Two reasons: (1) the value map is the source of truth, (2) a Ratel angle in the assessment that doesn't yet have a dashboard widget produces an unfinishable engagement.
 
 If you spot a new assessment dimension worth adding (something genuinely orthogonal to the existing twelve), open a PR — but bias toward adding a new finding under an existing dimension first.

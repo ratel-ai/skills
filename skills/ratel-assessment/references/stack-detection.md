@@ -1,6 +1,6 @@
 # Stack detection
 
-How to classify an agent codebase into one of four stack profiles. The classification drives where the assessment workflow looks for tools, prompts, sub-agents, and observability config — and which `/ratel-langfuse-instrument` reference file you cross-link from the report when recommending follow-ups.
+How to classify an agent codebase into one of four stack profiles. The classification drives where the assessment workflow looks for tools, prompts, sub-agents, and observability config — and which `/ratel-observability-assessment` reference file you cross-link from the report when recommending follow-ups.
 
 This file is intentionally light. The deep per-stack patterns (init shapes, observability wiring, telemetry conventions) live in the instrumentation skill's per-stack references. Do not duplicate them here.
 
@@ -8,10 +8,12 @@ This file is intentionally light. The deep per-stack patterns (init shapes, obse
 
 | Profile | Cross-link for deeper detail |
 | --- | --- |
-| Vercel AI SDK | [`../../ratel-langfuse-instrument/references/stack-vercel-ai-sdk.md`](../../ratel-langfuse-instrument/references/stack-vercel-ai-sdk.md) |
-| TypeScript generic (Mastra, direct provider SDKs, custom loops) | [`../../ratel-langfuse-instrument/references/stack-typescript-generic.md`](../../ratel-langfuse-instrument/references/stack-typescript-generic.md) |
-| Python generic (LangChain, LlamaIndex, direct provider SDKs) | [`../../ratel-langfuse-instrument/references/stack-python-generic.md`](../../ratel-langfuse-instrument/references/stack-python-generic.md) |
-| Python agentic (LangGraph, CrewAI, Agno, AutoGen) | [`../../ratel-langfuse-instrument/references/stack-python-agentic.md`](../../ratel-langfuse-instrument/references/stack-python-agentic.md) |
+| Vercel AI SDK | [`../../ratel-langfuse-integrate/references/stack-vercel-ai-sdk.md`](../../ratel-langfuse-integrate/references/stack-vercel-ai-sdk.md) |
+| TypeScript generic (Mastra, direct provider SDKs, custom loops) | [`../../ratel-langfuse-integrate/references/stack-typescript-generic.md`](../../ratel-langfuse-integrate/references/stack-typescript-generic.md) |
+| Python generic (LangChain, LlamaIndex, direct provider SDKs) | [`../../ratel-langfuse-integrate/references/stack-python-generic.md`](../../ratel-langfuse-integrate/references/stack-python-generic.md) |
+| Python agentic (LangGraph, CrewAI, Agno, AutoGen) | [`../../ratel-langfuse-integrate/references/stack-python-agentic.md`](../../ratel-langfuse-integrate/references/stack-python-agentic.md) |
+
+These are the Langfuse reference instrumentation patterns; LangSmith equivalents live in `ratel-langsmith-integrate/references/`.
 
 ## Detection signals
 

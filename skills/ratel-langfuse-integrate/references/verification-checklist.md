@@ -1,6 +1,6 @@
 # Verification checklist
 
-Six checks the customer can tick once instrumentation lands. Drop this section into every plan that `/ratel-langfuse-instrument` writes, so verification doesn't get skipped.
+Six checks the customer can tick once instrumentation lands. Drop this section into every plan that `/ratel-langfuse-integrate` writes, so verification doesn't get skipped.
 
 1. **One trace appears per externally meaningful unit.** Send a single chat turn / kick off a single job. Confirm exactly one trace shows up in Langfuse with the agreed trace name (e.g., `chat-turn`). If you see two traces or none, the entry-point wiring is wrong.
 
@@ -14,4 +14,4 @@ Six checks the customer can tick once instrumentation lands. Drop this section i
 
 6. **Cost and token usage are populated on generations.** Click a generation, confirm input/output token counts and computed cost are present. If they're empty, the provider integration isn't capturing usage (most common cause: using `from openai import OpenAI` instead of `from langfuse.openai import openai`, or missing the LangChain callback handler).
 
-If any of these fail, fix before moving on to `/ratel-langfuse-dashboards`. Dashboards built on missing data will mislead the team.
+If any of these fail, fix before building the dashboards specced later in this plan. Dashboards built on missing data will mislead the team.
