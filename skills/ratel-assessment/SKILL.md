@@ -1,7 +1,7 @@
 ---
 name: ratel-assessment
 description: |
-  Read a partner's agent codebase end-to-end and produce a polished assessment report that names concrete weaknesses with file-level evidence, threads Ratel-relevant findings through the report, and ends with conditional pointers to the right follow-up skills. Static-only by default; if a Langfuse project is already wired and reachable via MCP, pull a small live sample to enrich findings (graceful degrade if not). Use whenever the user wants a first-touch review of a partner agent, asks "assess our agent", "review our agent", "audit this agent", "where can we improve", "what would Ratel notice in this codebase", "give us an honest read of our agent", or invokes `/ratel-assessment`. Trigger on phrases like "look at this agent and tell us what's weak", "we want a Ratel-flavored review", "first-pass audit before we engage", "spot the low-hanging fruit in this repo" — even if the user doesn't say "skill" or "ratel-assessment" by name. This skill writes a markdown report; it does not edit the agent code itself.
+  Read a partner's agent codebase end-to-end and produce a polished assessment report that names concrete weaknesses with file-level evidence, threads Ratel-relevant findings through the report, and ends with conditional pointers to the right follow-up skills. Static-only by default; if a Langfuse project is already wired and reachable via MCP, pull a small live sample to enrich findings (graceful degrade if not). Use whenever the user wants a first-touch review of a partner agent, asks "assess our agent", "review our agent", "audit this agent", "where can we improve", "what would Ratel notice in this codebase", "give us an honest read of our agent", or invokes `/ratel-assessment`. Trigger on phrases like "look at this agent and tell us what's weak", "we want a Ratel-flavored review", "first-pass audit before we engage", "spot the low-hanging fruit in this repo" — even if the user doesn't say "skill" or "ratel-assessment" by name. This skill writes a markdown report plus a branded, scored HTML report; it does not edit the agent code itself.
 allowed-tools:
   - Bash
   - Read
@@ -16,7 +16,7 @@ allowed-tools:
 
 The first conversation with a partner startup is rarely "wire up Ratel." It is "show us you understand our agent." This skill is the front door: it reads the codebase, runs every dimension in the assessment catalog, and produces a markdown report the partner could (and would) share internally — whether or not they end up using Ratel.
 
-The deliverable is a polished, evidence-led report at `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.md`. The report carries credibility because every finding cites a file path, a line range, or a concrete count. It carries narrative because the Ratel-relevant findings cluster into a "Where Ratel fits" section that ties them to specific shipped features and roadmap versions. It carries momentum because it ends with conditional pointers to the right follow-up skill from the suite ([`/ratel-observability-assessment`](../ratel-observability-assessment/SKILL.md), [`/ratel-integrate`](../ratel-integrate/SKILL.md), [`/ratel-decompose-prompt`](../ratel-decompose-prompt/SKILL.md), [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md)).
+The deliverable is a polished, evidence-led report at `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.md`, rendered alongside a branded, scored HTML version at `<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.html` (gauge, radar, per-dimension score bars). The report carries credibility because every finding cites a file path, a line range, or a concrete count. It carries narrative because the Ratel-relevant findings cluster into a "Where Ratel fits" section that ties them to specific shipped features and roadmap versions. It carries momentum because it ends with conditional pointers to the right follow-up skill from the suite ([`/ratel-observability-assessment`](../ratel-observability-assessment/SKILL.md), [`/ratel-integrate`](../ratel-integrate/SKILL.md), [`/ratel-decompose-prompt`](../ratel-decompose-prompt/SKILL.md), [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md)).
 
 This skill complements the rest of the suite:
 
@@ -99,6 +99,8 @@ Each of the twelve dimensions gets exactly one of:
 - **Weak** — material gaps; at least one Major finding.
 - **Missing** — dimension is absent or broken; at least one Critical finding.
 
+Then translate each label into a **0–10 score inside that label's band**, and compute the **overall composite** (the mean of the twelve, one decimal), per the rubric in [`references/assessment-catalog.md`](references/assessment-catalog.md) → "Numeric score". The label stays the source of truth; the number is what the HTML gauge, radar, and per-dimension bars draw — keep each score within its label's band so the two never disagree.
+
 The scorecard goes at the top of the report. It is the first thing the partner reads. Make it accurate; do not soften.
 
 ### Step 6 — Generate the report
@@ -112,13 +114,28 @@ Sections, in order:
 3. **Where Ratel fits** — consolidates the threaded Ratel angles into one narrative. Tied to specific Ratel features / roadmap versions from the value map. If only one or two findings carry Ratel angles, this section is short — that's fine.
 4. **Recommended next steps** — conditional skill pointers based on what was found. Bullet list, each pointer one line. See [Conditional pointers](#conditional-pointers) below.
 
+Then render the branded HTML alongside the markdown:
+
+1. Assemble a JSON payload carrying the same content — `partner`, `date`, `stack`, `scope`, `data_sources`, `overall_score`, `summary`, the twelve `dimensions` (`{name, label, score}` in catalog order), the `findings` array (`title`, `dimension`, `severity`, `evidence`, `rationale`, `recommendation`, optional `ratel_angle`), and optional `where_ratel_fits`, `next_steps`, `appendix`. The schema is worked out in full in [`assets/sample-payload.json`](assets/sample-payload.json). Content fields may use inline `` `code` `` and `*emphasis*`; the renderer converts them and HTML-escapes everything else.
+2. Write the payload to a temp file and run the bundled renderer (it owns all chart geometry and band coloring — never hand-compute SVG):
+
+   ```bash
+   python3 "<skill>/assets/render_report.py" \
+     --data "<tmp>/payload.json" \
+     --template "<skill>/assets/report-template.html" \
+     --out "<repo>/.ratel/ratel-assessment-<YYYY-MM-DD>.html"
+   ```
+
+   `<skill>` is this skill's directory. The output is a single self-contained HTML file (inline CSS + SVG; fonts load from Google Fonts with system fallbacks, so it still reads offline).
+3. **Fallback** — if `python3` is unavailable, open [`assets/report-template.html`](assets/report-template.html) and fill its `{{PLACEHOLDER}}` tokens directly from the same payload (the full token list is in the header of `render_report.py`). The markdown report is unaffected either way; never block on the HTML.
+
 ### Step 7 — Inline summary
 
 Print to chat, in this order:
 
-1. The scorecard table (or a compact one-line version: "Topology Adequate · Tools Weak · Context Strong · ...").
+1. The overall composite (`Overall: 6.6 / 10`) and the scorecard (or a compact one-line version: "Topology Strong 9.0 · Tools Weak 4.6 · Observability Missing 1.5 · ...").
 2. The top 3 findings with one-line summaries each.
-3. The file path of the full report.
+3. Both file paths — the `.md` and the `.html`.
 4. The recommended next-step skill(s).
 
 Do not paste the full report body into chat. The file is the artifact.
@@ -159,6 +176,12 @@ If the codebase is an agent but the catalog finds *nothing worse than Info* acro
 - [`references/assessment-catalog.md`](references/assessment-catalog.md) — the twelve dimensions, detection heuristics, severity rubrics, recommendations, and Ratel angles. The load-bearing file.
 - [`references/stack-detection.md`](references/stack-detection.md) — quick playbook for classifying the agent stack; cross-links to `/ratel-observability-assessment`'s per-stack detail for deeper analysis.
 - [`references/report-template.md`](references/report-template.md) — canonical report structure and a worked example.
+
+Bundled assets (the HTML deliverable):
+
+- [`assets/report-template.html`](assets/report-template.html) — the self-contained, brand-faithful HTML template with `{{PLACEHOLDER}}` tokens (Ratel palette, gauge/radar/score-bar regions, print stylesheet).
+- [`assets/render_report.py`](assets/render_report.py) — pure-stdlib renderer: computes the chart geometry, fills the placeholders, writes the `.html`.
+- [`assets/sample-payload.json`](assets/sample-payload.json) — the worked-example payload; doubles as the JSON schema reference and a render fixture.
 
 Reads from (does not duplicate):
 

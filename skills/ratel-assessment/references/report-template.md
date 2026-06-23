@@ -2,6 +2,8 @@
 
 The canonical structure of the assessment report. The skill writes the report by walking [`assessment-catalog.md`](assessment-catalog.md), filling findings under each dimension, and then assembling the sections below in order.
 
+The same content is delivered twice: this **markdown** structure is the git-diffable source of truth, and a **branded HTML** version (gauge, radar, per-dimension score bars) is rendered from the same data by [`../assets/render_report.py`](../assets/render_report.py) into [`../assets/report-template.html`](../assets/report-template.html). The HTML payload schema is documented and worked-out in [`../assets/sample-payload.json`](../assets/sample-payload.json) — keep this markdown structure and that payload in sync.
+
 The worked example at the bottom is a fictional partner — use it to calibrate tone, density, and evidence-citation style. Do not copy any of its findings into a real report unless they match real evidence in the partner's codebase.
 
 ## Structure
@@ -19,25 +21,27 @@ The worked example at the bottom is a fictional partner — use it to calibrate 
 
 ### 1. Executive summary
 
-One paragraph (4–6 sentences). What the agent is for, the headline scorecard read, the two or three findings worth raising in a partner meeting, and one sentence on what's strong.
+One paragraph (4–6 sentences). What the agent is for, the headline scorecard read, the two or three findings worth raising in a partner meeting, and one sentence on what's strong. Lead the scorecard with the **overall composite** — the mean of the twelve dimension scores (0–10) — stated as `**Overall: X.X / 10.**`.
 
-Then the scorecard:
+Then the scorecard. Each dimension carries both its ordinal **Rating** and a **0–10 Score** in that rating's band (see [`assessment-catalog.md`](assessment-catalog.md) → "Numeric score"):
 
 ```markdown
-| Dimension | Score |
-| --- | --- |
-| Agent topology | Strong / Adequate / Weak / Missing |
-| Tool surface | ... |
-| Context management | ... |
-| Decomposition | ... |
-| Model routing | ... |
-| Error handling | ... |
-| Observability | ... |
-| Cost discipline | ... |
-| Eval / quality gates | ... |
-| Safety | ... |
-| Prompt decomposition | ... |
-| Definition quality | ... |
+**Overall: X.X / 10.**
+
+| Dimension | Rating | Score |
+| --- | --- | --- |
+| Agent topology | Strong / Adequate / Weak / Missing | 0.0–10.0 |
+| Tool surface | ... | ... |
+| Context management | ... | ... |
+| Decomposition | ... | ... |
+| Model routing | ... | ... |
+| Error handling | ... | ... |
+| Observability | ... | ... |
+| Cost discipline | ... | ... |
+| Eval / quality gates | ... | ... |
+| Safety | ... | ... |
+| Prompt decomposition | ... | ... |
+| Definition quality | ... | ... |
 ```
 
 ### 2. Findings
@@ -114,20 +118,22 @@ What follows is a fictional assessment of a fictional partner ("Northcrop AI"). 
 
 Northcrop's research agent is a Vercel AI SDK loop that exposes 41 tools to the model on every turn through `src/agents/research-agent/tools.ts:18`. The top-level shape is sound — a single named agent, clean entry point, no recursion — but the tool surface is the dominant cost and quality risk in the codebase today: descriptions are long, several pairs are near-duplicates, and there is no pre-filtering. There is no observability wired anywhere, which means none of the cost or quality claims in this report are independently verifiable today; closing that loop is the highest-leverage next step. The eval suite under `evals/` is real and runs on PRs — strongest dimension in the assessment.
 
-| Dimension | Score |
-| --- | --- |
-| Agent topology | Strong |
-| Tool surface | Weak |
-| Context management | Adequate |
-| Decomposition | Adequate |
-| Model routing | Adequate |
-| Error handling | Adequate |
-| Observability | Missing |
-| Cost discipline | Weak |
-| Eval / quality gates | Strong |
-| Safety | Adequate |
-| Prompt decomposition | Weak |
-| Definition quality | Weak |
+**Overall: 6.6 / 10.**
+
+| Dimension | Rating | Score |
+| --- | --- | --- |
+| Agent topology | Strong | 9.0 |
+| Tool surface | Weak | 4.6 |
+| Context management | Adequate | 7.6 |
+| Decomposition | Adequate | 7.8 |
+| Model routing | Adequate | 7.5 |
+| Error handling | Adequate | 7.7 |
+| Observability | Missing | 1.5 |
+| Cost discipline | Weak | 5.8 |
+| Eval / quality gates | Strong | 8.8 |
+| Safety | Adequate | 7.4 |
+| Prompt decomposition | Weak | 6.0 |
+| Definition quality | Weak | 5.6 |
 
 ## Findings
 
@@ -226,7 +232,7 @@ Prompt regressions across deploys will be undetectable once observability is wir
 ### Eval suite covers tasks but not tool selection
 
 - **Dimension**: Eval / quality gates
-- **Severity**: Minor
+- **Severity**: Info
 - **Evidence**: `evals/research-agent.jsonl` has 84 labeled tasks with expected outputs but no `expected_tool_id` field. CI gate in `.github/workflows/evals.yml` runs on every PR.
 
 The eval suite catches output regressions but cannot detect tool-selection regressions (e.g., the agent producing a correct-looking answer using the wrong tool). Given the tool sprawl finding above, this is worth closing.
@@ -239,7 +245,7 @@ The eval suite catches output regressions but cannot detect tool-selection regre
 
 Three findings in this report (tool sprawl, bloated descriptions, near-duplicates) are the textbook fit for Ratel's shipped v0.1.6 surface: BM25 tool retrieval with replace-mode pre-filter, paired with the Retrieval Quality dashboard. Once observability lands, the dashboard will show the input-token reduction directly and surface low top-hit scores for the descriptions that need rewriting.
 
-The ground-truth labeling finding (Eval / quality gates, Minor) unlocks the Retrieval Quality dashboard's `recall@5` widget, which closes the measurement loop on the integration: not just "we sent fewer tokens" but "we sent the *right* tools." This is the partner-facing proof.
+The ground-truth labeling finding (Eval / quality gates, Info) unlocks the Retrieval Quality dashboard's `recall@5` widget, which closes the measurement loop on the integration: not just "we sent fewer tokens" but "we sent the *right* tools." This is the partner-facing proof.
 
 Two further findings map to shipped surface beyond the catalog pre-filter. The monolithic-prompt finding (Prompt decomposition, Major) fits Ratel's first-class skills (v0.1.6, shipped): the duplicated runbook becomes a retrievable skill that Ratel ranks alongside tools and loads on demand, so it stops paying input-token rent every turn. The description-quality finding (Definition quality, Major) is the wording side of the same BM25 index — names, descriptions, parameter names, and enum values all feed retrieval (ADR-0004), so tightening them lifts recall directly.
 
