@@ -187,10 +187,12 @@ def render_radar(dimensions):
 
     shape_pts, dots = [], []
     for i, dim in enumerate(dimensions):
-        rr = R * max(0.0, min(10.0, float(dim.get("score", 0)))) / 10.0
+        score = max(0.0, min(10.0, float(dim.get("score", 0))))
+        _, color, _ = band_for(score)
+        rr = R * score / 10.0
         x, y = polar(cx, cy, rr, i * step)
         shape_pts.append(f"{x:.1f},{y:.1f}")
-        dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" class="r-dot" />')
+        dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.4" fill="{color}" class="r-dot" />')
     shape = " ".join(shape_pts)
 
     return f'''<svg viewBox="0 0 360 300" role="img" aria-label="Radar of dimension scores">
@@ -199,7 +201,7 @@ def render_radar(dimensions):
     .r-spoke {{ stroke:var(--hairline); stroke-width:1; }}
     .r-label {{ font-family:var(--mono); font-size:10px; fill:var(--muted-fg); }}
     .r-shape {{ fill:color-mix(in srgb, var(--brand-orange) 16%, transparent); stroke:var(--brand-orange); stroke-width:2; stroke-linejoin:round; }}
-    .r-dot {{ fill:var(--brand-orange); }}
+    .r-dot {{ stroke:#fff; stroke-width:1; }}
   </style>
   {''.join(rings)}
   {''.join(spokes)}
@@ -209,27 +211,38 @@ def render_radar(dimensions):
 </svg>'''
 
 
-# ── Scorecard rows: name · 28-cell pixel bar · score · band chip ───────────────────
+# ── Scorecard rows: name + band chip · benchmark-style fill bar · score ────────────
 def render_scorecard(dimensions):
     rows = []
     for i, dim in enumerate(dimensions):
         score = float(dim.get("score", 0))
         cls, _, label = band_for(score)
         label = dim.get("label", label)
-        filled = round(max(0.0, min(10.0, score)) / 10.0 * 28)
-        cells = "".join(
-            f'<span class="px on"></span>' if j < filled else '<span class="px"></span>'
-            for j in range(28)
-        )
+        pct = max(0.0, min(10.0, score)) / 10.0 * 100.0
         rows.append(
-            f'<div class="bar-row reveal band-{cls}" style="--i:{i}">'
+            f'<div class="bar-row band-{cls}">'
+            f'<div class="bar-head">'
             f'<span class="dim">{html.escape(dim.get("name", ""))}</span>'
-            f'<span class="pixbar">{cells}</span>'
-            f'<span class="right"><span class="score">{fmt_score(score)}</span>'
-            f'<span class="chip band-{cls}">{html.escape(label)}</span></span>'
+            f'<span class="chip band-{cls}">{html.escape(label)}</span>'
+            f"</div>"
+            f'<div class="bar-track">'
+            f'<div class="rail"><div class="fill" style="--w:{pct:.2f}%;--i:{i}"></div></div>'
+            f'<span class="bar-val">{fmt_score(score)}<small> / 10</small></span>'
+            f"</div>"
             f"</div>"
         )
     return "\n".join(rows)
+
+
+# ── Hero title: partner name split into blur-rise words ─────────────────────────────
+def render_partner_words(partner):
+    words = str(partner).split()
+    if not words:
+        return ""
+    return " ".join(
+        f'<span class="w" style="--wi:{i}">{html.escape(w)}</span>'
+        for i, w in enumerate(words)
+    )
 
 
 # ── Findings: grouped Critical → Major → Minor → Info ──────────────────────────────
@@ -246,7 +259,7 @@ def render_findings(findings):
         for i, f in enumerate(bucket):
             angle = f.get("ratel_angle")
             angle_html = (
-                f'<div class="angle"><span class="k">Ratel angle</span>'
+                f'<div class="angle"><span class="k">Ratel can help</span>'
                 f'<span>{md_inline(angle)}</span></div>'
                 if angle
                 else ""
@@ -313,6 +326,7 @@ def main():
 
     subs = {
         "{{PARTNER}}": html.escape(data.get("partner", "")),
+        "{{PARTNER_WORDS}}": render_partner_words(data.get("partner", "")),
         "{{DATE}}": html.escape(data.get("date", "")),
         "{{STACK}}": html.escape(data.get("stack", "")),
         "{{SCOPE}}": md_inline(data.get("scope", "")),

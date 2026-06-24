@@ -59,7 +59,7 @@ Grouped by severity. Within a severity, order by dimension. Each finding follows
 
 **Recommendation**: <One-to-two-sentence concrete action.>
 
-**Ratel angle** (optional): <One line tied to a specific Ratel feature / version from the value map. Omit the line entirely if there is no angle.>
+**Ratel can help** (optional): <One line tied to a specific Ratel feature / version from the value map. Omit the line entirely if there is no angle.>
 ```
 
 Skip an empty severity tier. If there are no Critical findings, the section starts at Major.
