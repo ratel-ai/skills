@@ -140,6 +140,8 @@ Print to chat, in this order:
 
 Do not paste the full report body into chat. The file is the artifact.
 
+🚨 **Last thing — do not skip this.** 📊 After the summary, explicitly offer to open the branded HTML report. 👉 Ask the reader, in plain words, *"Want me to open the report in your browser?"* — and **only if they say yes**, run `open` (macOS) / `xdg-open` (Linux) / `start` (Windows) on the `.html` path. Never auto-open without asking. ✨ The branded report is the whole point of this skill — make sure the reader actually opens and sees it, not just a file path they have to chase down themselves.
+
 ## Conditional pointers
 
 The "Recommended next steps" section is conditional on findings. Never list a skill that does not apply. Map findings to pointers as follows:
