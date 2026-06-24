@@ -18,6 +18,8 @@ Payload schema (see assets/sample-payload.json for a full worked example):
       "overall_score": float,                 # 0–10, one decimal
       "summary": str,                         # paragraphs separated by blank lines
       "dimensions": [ {"name": str, "label": str, "score": float}, ... ],  # 12, catalog order
+      "category_takeaways": { "<category name>": str, ... },  # optional; one-line "so what"
+                                                              # per category (see CATEGORIES)
       "findings": [ {
           "title": str, "dimension": str,
           "severity": "Critical"|"Major"|"Minor"|"Info",
@@ -53,6 +55,33 @@ SEVERITY = {
     "Info": ("info", "#32635c"),
 }
 SEVERITY_ORDER = ["Critical", "Major", "Minor", "Info"]
+
+# ── Category taxonomy: the twelve dimensions roll up into four scored groups ─────────
+# The radar keeps all twelve axes (detailed shape); the bars show these four
+# categories (the simpler read). Each category score is the mean of its member
+# dimensions; the per-category "so what" line comes from the payload.
+CATEGORIES = [
+    {
+        "name": "Architecture & orchestration",
+        "blurb": "How the agent is structured: its topology, how work is split into steps, and how models are chosen per step.",
+        "dims": ["Agent topology", "Decomposition", "Model routing"],
+    },
+    {
+        "name": "Context & tools",
+        "blurb": "What the model sees on every turn: the tool catalog, the system prompt, and how tightly both are scoped and named.",
+        "dims": ["Tool surface", "Context management", "Prompt decomposition", "Definition quality"],
+    },
+    {
+        "name": "Reliability & safety",
+        "blurb": "Whether the agent behaves correctly and safely: failure handling, quality gates that catch regressions, and guardrails.",
+        "dims": ["Error handling", "Eval / quality gates", "Safety"],
+    },
+    {
+        "name": "Operations",
+        "blurb": "Whether you can see and control the agent in production: tracing/observability and cost discipline.",
+        "dims": ["Observability", "Cost discipline"],
+    },
+]
 
 # Short labels for the radar axes (long dimension names don't fit on a spoke).
 SHORT_LABELS = {
@@ -211,24 +240,48 @@ def render_radar(dimensions):
 </svg>'''
 
 
-# ── Scorecard rows: name + band chip · benchmark-style fill bar · score ────────────
-def render_scorecard(dimensions):
+# ── Scorecard rows: four category bars (mean of member dims) with description + so-what ──
+def render_scorecard(dimensions, takeaways=None):
+    takeaways = takeaways or {}
+    by_name = {d.get("name", ""): d for d in dimensions}
     rows = []
-    for i, dim in enumerate(dimensions):
-        score = float(dim.get("score", 0))
+    for i, cat in enumerate(CATEGORIES):
+        members = [by_name[name] for name in cat["dims"] if name in by_name]
+        if not members:
+            continue
+        score = sum(float(m.get("score", 0)) for m in members) / len(members)
         cls, _, label = band_for(score)
-        label = dim.get("label", label)
         pct = max(0.0, min(10.0, score)) / 10.0 * 100.0
+
+        # Member breakdown: each dimension with its band-colored score.
+        chips = []
+        for m in members:
+            mscore = float(m.get("score", 0))
+            mcls, _, _ = band_for(mscore)
+            chips.append(
+                f'<span class="d band-{mcls}">{html.escape(m.get("name", ""))} '
+                f'<b>{fmt_score(mscore)}</b></span>'
+            )
+        dims_line = '<span class="sep">·</span>'.join(chips)
+
+        takeaway = takeaways.get(cat["name"])
+        sowhat = (
+            f'<p class="cat-sowhat"><span class="k">So what —</span> {md_inline(takeaway)}</p>'
+            if takeaway
+            else ""
+        )
+
         rows.append(
-            f'<div class="bar-row band-{cls}">'
-            f'<div class="bar-head">'
-            f'<span class="dim">{html.escape(dim.get("name", ""))}</span>'
-            f'<span class="chip band-{cls}">{html.escape(label)}</span>'
-            f"</div>"
+            f'<div class="cat-row band-{cls}">'
+            f'<div class="cat-head"><span class="cat-name">{html.escape(cat["name"])}</span>'
+            f'<span class="chip band-{cls}">{html.escape(label)}</span></div>'
+            f'<p class="cat-desc">{html.escape(cat["blurb"])}</p>'
             f'<div class="bar-track">'
             f'<div class="rail"><div class="fill" style="--w:{pct:.2f}%;--i:{i}"></div></div>'
             f'<span class="bar-val">{fmt_score(score)}<small> / 10</small></span>'
             f"</div>"
+            f'<p class="cat-dims">{dims_line}</p>'
+            f"{sowhat}"
             f"</div>"
         )
     return "\n".join(rows)
@@ -335,7 +388,7 @@ def main():
         "{{SUMMARY}}": md_blocks(data.get("summary", "")),
         "{{OVERALL_GAUGE_SVG}}": render_gauge(overall),
         "{{RADAR_SVG}}": render_radar(dimensions),
-        "{{SCORECARD_ROWS}}": render_scorecard(dimensions),
+        "{{SCORECARD_ROWS}}": render_scorecard(dimensions, data.get("category_takeaways")),
         "{{FINDINGS}}": render_findings(data.get("findings", [])),
         "{{WHERE_RATEL_FITS}}": optional[0] if len(optional) > 0 else "",
         "{{NEXT_STEPS}}": optional[1] if len(optional) > 1 else "",

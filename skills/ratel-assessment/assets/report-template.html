@@ -193,11 +193,35 @@
   .legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted-fg); }
   .legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 
-  /* Benchmark-style score bars (ported from ratel.sh/benchmark AnimatedBars) */
-  .bars { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 4px; }
-  .bar-row { display: flex; flex-direction: column; gap: 0.55rem; }
-  .bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
-  .bar-head .dim { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; }
+  /* Benchmark-style score bars (ported from ratel.sh/benchmark AnimatedBars),
+     grouped into four categories: description + bar + member breakdown + "so what". */
+  .bars { display: flex; flex-direction: column; gap: 22px; margin-top: 6px; }
+  .cat-row {
+    border: 1px solid var(--border); border-left-width: 3px; border-left-color: var(--band);
+    border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-xs);
+    padding: 16px 18px 14px;
+  }
+  .cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+  .cat-name { font-size: 1.02rem; font-weight: 600; letter-spacing: -0.01em; }
+  .cat-desc { margin: 6px 0 12px; font-size: 13.5px; line-height: 1.5; color: var(--muted-fg); }
+  .cat-dims {
+    margin: 11px 0 0; font-family: var(--mono); font-size: 11px;
+    color: var(--muted-fg); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline;
+  }
+  .cat-dims .d b { font-weight: 700; }
+  .cat-dims .d.band-strong b   { color: var(--band-strong); }
+  .cat-dims .d.band-adequate b { color: color-mix(in srgb, var(--band-adequate) 72%, var(--brand-ink)); }
+  .cat-dims .d.band-weak b     { color: var(--band-weak); }
+  .cat-dims .d.band-missing b  { color: var(--band-missing); }
+  .cat-dims .sep { color: var(--border); }
+  .cat-sowhat {
+    margin: 12px 0 0; padding: 10px 13px; font-size: 13.5px; line-height: 1.5;
+    background: var(--muted); border: 1px solid var(--hairline); border-radius: var(--radius);
+  }
+  .cat-sowhat .k {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--brand-orange);
+  }
   .bar-track { display: flex; align-items: center; gap: 1rem; }
   .rail {
     position: relative; flex: 1; height: 2.1rem; border-radius: 0.5rem; overflow: hidden;
@@ -363,7 +387,7 @@
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
     .page { padding-bottom: 0; }
-    section, .finding, .hero-card { break-inside: avoid; }
+    section, .finding, .hero-card, .cat-row { break-inside: avoid; }
     .sec-head h2 { break-after: avoid; }
     footer { break-inside: avoid; }
   }
@@ -430,7 +454,7 @@
     </section>
 
     <section>
-      <div class="sec-head"><span class="num">02</span><h2>Dimension scorecard</h2><span class="rule"></span></div>
+      <div class="sec-head"><span class="num">02</span><h2>Scorecard</h2><span class="rule"></span></div>
       <div class="bars">
         {{SCORECARD_ROWS}}
       </div>
