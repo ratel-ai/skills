@@ -7,3 +7,5 @@ node_modules/
 *.swo
 .skills-cache/
 skills-lock.json
+__pycache__/
+*.pyc

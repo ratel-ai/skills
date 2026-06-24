@@ -638,6 +638,21 @@ Score each dimension once, using the **worst severity** in its findings:
 
 If the dimension has *no signal at all in the codebase* (e.g., no observability surface anywhere, no eval directory at all), score it **Missing** and write a single Critical-or-Major finding explaining the absence. Don't score **Strong** by accident on a dimension you couldn't even evaluate.
 
+### Numeric score (0–10)
+
+Assign the ordinal label first — it stays the source of truth — then give the dimension a **0–10 score that sits inside that label's band**, so the number and the label can never disagree. The score exists so the HTML report can draw the gauge, radar, and per-dimension bars; it is a presentation layer over the label, not a re-scoring.
+
+| Label | Band | How to place within the band |
+| --- | --- | --- |
+| **Strong** | 8.5–10.0 | Base 9.0. Use 10.0 only when the dimension has zero findings of any kind. |
+| **Adequate** | 6.5–8.4 | Base 8.0; subtract ≈0.5 per Minor finding beyond the first (floor 6.5). A dimension with no findings that you simply could not evaluate deeply lands here, around 7.5. |
+| **Weak** | 3.5–6.4 | Base 6.0; subtract ≈0.7 per Major beyond the first and ≈0.2 per accompanying Minor (floor 3.5). |
+| **Missing** | 0.0–3.4 | Base 3.0; subtract ≈1.0 per Critical beyond the first (floor 0.0). Use ≈1.0–1.5 when the dimension's surface is entirely absent. |
+
+Round to one decimal and clamp into the band. The render script derives each bar/chip color from the score, so a score that strays outside its label's band would mis-color the report — keep them aligned.
+
+**Overall composite** = the mean of the twelve dimension scores, rounded to one decimal. Keep it a simple unweighted mean (Observability is the most consequential dimension, but weighting invites "why is it weighted" questions on a partner-facing artifact; leave it flat unless a future engagement asks otherwise).
+
 ## Catalog maintenance
 
 When Ratel ships a new feature, the corresponding row goes in [`../../ratel-observability-assessment/references/ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md) first. Only then does this catalog get an updated Ratel-angle line. Two reasons: (1) the value map is the source of truth, (2) a Ratel angle in the assessment that doesn't yet have a dashboard widget produces an unfinishable engagement.

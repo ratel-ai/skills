@@ -52,7 +52,7 @@ Ready to wire Ratel in? Go straight to the integration plan:
 Run npx skills add ratel-ai/skills --all and use the skills to integrate Ratel in this project.
 ```
 
-Either entry point pulls in the whole suite. The assessment writes a report to `.ratel/ratel-assessment-<date>.md` and ends with "Recommended next steps" — every finding routes to the right follow-up skill (observability assessment, a vendor integrate/analyze pair, the Ratel gateway integrate, or one of the two fix-skills), so you don't have to know the arc up front.
+Either entry point pulls in the whole suite. The assessment writes a report to `.ratel/ratel-assessment-<date>.md` — plus a branded, scored HTML version (`.html`) alongside it — and ends with "Recommended next steps" — every finding routes to the right follow-up skill (observability assessment, a vendor integrate/analyze pair, the Ratel gateway integrate, or one of the two fix-skills), so you don't have to know the arc up front.
 
 ## What's inside
 
@@ -60,7 +60,7 @@ Nine skills. The first seven run the engagement arc, in the order a partner enga
 
 | Skill | What it does | When to fire |
 | --- | --- | --- |
-| [`ratel-assessment`](./skills/ratel-assessment/SKILL.md) | Static read of the agent codebase (TypeScript or Python). Produces a polished assessment report at `<repo>/.ratel/ratel-assessment-<date>.md` with a 12-dimension scorecard, evidence-backed findings, and conditional pointers to the right follow-up skill. | First touch. Zero partner setup. |
+| [`ratel-assessment`](./skills/ratel-assessment/SKILL.md) | Static read of the agent codebase (TypeScript or Python). Produces a polished assessment report at `<repo>/.ratel/ratel-assessment-<date>.{md,html}` — markdown plus a branded, scored HTML version (gauge, radar, score bars) — with a 12-dimension scorecard (0–10 per dimension + overall composite), evidence-backed findings, and conditional pointers to the right follow-up skill. | First touch. Zero partner setup. |
 | [`ratel-observability-assessment`](./skills/ratel-observability-assessment/SKILL.md) | Generic, vendor-neutral: detects the observability vendor (or asks), proposes how to instrument and which dashboards to add, and routes to the matching vendor integrate skill. Writes a proposal at `<repo>/.ratel/ratel-observability-assessment.md`. | After assessment flags Observability as Weak / Missing. |
 | [`ratel-langfuse-integrate`](./skills/ratel-langfuse-integrate/SKILL.md) | Langfuse-specific: concrete SDK wiring, MCP registration, naming/mapping table, file-by-file instrumentation changes, and the dashboard build-spec (Ratel-value + agent-health). | When the observability assessment detects / picks Langfuse. |
 | [`ratel-langfuse-analyze`](./skills/ratel-langfuse-analyze/SKILL.md) | Reads live Langfuse traces via the Langfuse MCP server, drills into outliers, pattern-matches against a finding catalog, writes a findings report split into Ratel-flavored and stack-agnostic improvements. | After traffic accumulates under the A/B split. |
