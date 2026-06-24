@@ -1,7 +1,7 @@
 ---
 name: ratel-langfuse-integrate
 description: |
-  Wire Langfuse into an agent codebase end to end: SDK setup, session boundaries, sub-agent handoffs, tool wrapping, the Langfuse naming/tagging vocabulary, and the dashboard build-spec that turns those traces into visible value. Use whenever the user wants to instrument Langfuse, asks "wire up Langfuse tracing", "set up Langfuse here", "instrument the agent with Langfuse", "where does Langfuse go in this codebase", "set up Langfuse dashboards", "what should we put on the Langfuse board", "design our Langfuse dashboards", or invokes `/ratel-langfuse-integrate`. Trigger on phrases like "add Langfuse observability", "we just signed a partner, let's get Langfuse in", "trace coverage for this agent on Langfuse", "Ratel-value dashboards", "agent health dashboards in Langfuse" — even if the user doesn't say "skill" or "ratel-langfuse-integrate" by name. This skill is the Langfuse branch that `/ratel-observability-assessment` routes to. It writes a markdown plan; it does not edit the agent code itself and does not call the Langfuse API.
+  Inspect an agent codebase and write a markdown plan wiring Langfuse tracing/observability (session/trace boundaries, sub-agent handoffs, tool wrapping, naming/tagging vocabulary) plus a Ratel-value/agent-health dashboard build-spec. Use to instrument Langfuse, wire up tracing, set up dashboards, decide where Langfuse goes or what to put on the board, onboard a just-signed partner, or `/ratel-langfuse-integrate`. Writes to <repo>/.ratel/; never edits code or calls the Langfuse API. The Langfuse branch of /ratel-observability-assessment; redirects if the vendor is LangSmith; routes to /ratel-langfuse-analyze once traces flow.
 allowed-tools:
   - Bash
   - Read

@@ -1,7 +1,7 @@
 ---
 name: ratel-integrate
 description: |
-  Inspect a customer codebase, figure out how it manages tools and which agent framework it uses, fetch Ratel documentation, and propose a plan to integrate Ratel's context gateway (BM25 retrieval + unified `search_capabilities` / `invoke_tool` / `get_skill_content` gateway tools). The plan includes the integration mode (direct SDK vs MCP gateway vs hybrid), an A/B test design, and the observability metrics (via your vendor integrate skill, e.g. Langfuse or LangSmith) that will prove the integration is working. Use whenever the user wants to add Ratel to a partner codebase, asks "wire up Ratel here", "how would Ratel fit", "integrate the gateway", "add tool search", "Ratel pilot for this customer", or invokes `/ratel-integrate`. Trigger on phrases like "let's add Ratel", "integrate the context gateway", "set up the Ratel SDK in this repo", "plan a Ratel rollout for them", "Ratel A/B for this agent" — even if the user doesn't say "skill" or "ratel-integrate" by name. This skill writes a markdown plan and asks clarifying questions when the codebase is ambiguous; it does not edit the agent code itself.
+  Inspect a customer agent codebase for its tool-management approach and framework, fetch Ratel docs, and write a markdown plan to integrate Ratel's context gateway — integration mode, pilot scope, A/B test design, and rollout metrics. Use to add Ratel, wire up the gateway, set up the SDK, add tool search / BM25 retrieval, plan a Ratel pilot, rollout, or A/B test, or `/ratel-integrate`. Writes to <repo>/.ratel/, asks when ambiguous, never edits code; runs after /ratel-observability-assessment and a vendor integrate skill.
 allowed-tools:
   - Bash
   - Read

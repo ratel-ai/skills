@@ -1,7 +1,7 @@
 ---
 name: ratel-tune-definitions
 description: |
-  Audit and rewrite tool AND skill definitions — descriptions, names, parameter names, enums, schemas, and tags — so they are both maximally retrievable by Ratel's BM25 index and maximally usable by the model: clear "what it does" plus "when to use", tight schemas, no near-duplicates, no bloat, no anemia. Use whenever the user wants better tool or skill definitions, asks "optimize my tool descriptions", "improve tool definitions", "my tools have bad descriptions", "tune tool/skill schemas", "rewrite tool descriptions for retrieval", "fix near-duplicate tools", "my tools never get picked", "tighten my tool schemas", or invokes `/ratel-tune-definitions`. Trigger on phrases like "the model picks the wrong tool", "my descriptions are too long / too vague", "make my tools retrievable", "clean up the tool catalog", "why isn't Ratel finding my tool" — even if the user doesn't say "skill" or "ratel-tune-definitions" by name. This skill writes a markdown tuning plan with before/after rewrites; it does not edit the agent's tool code itself.
+  Audit a codebase's tool and skill definitions against a failure-mode rubric and write a markdown tuning plan with per-definition before/after rewrites that make them BM25-retrievable and model-usable. Use when the model picks the wrong tool, tools never get picked, descriptions are too long/vague/anemic, to fix near-duplicates, tighten schemas/enums/param names, clean up the tool catalog, or `/ratel-tune-definitions`. Fetches live Ratel docs; writes to <repo>/.ratel/ without editing tool or skill code. The fix /ratel-assessment's Definition Quality dimension routes to; runs after /ratel-decompose-prompt.
 allowed-tools:
   - Bash
   - Read

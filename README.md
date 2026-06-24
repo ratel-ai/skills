@@ -120,7 +120,7 @@ The reports each skill writes are markdown files written into the partner's repo
 Every skill in this suite follows the same rules:
 
 - **No emojis. Imperative voice.** The skills are for engineering audiences who tune out marketing tone.
-- **Pushy multi-phrase descriptions.** Each skill's frontmatter trigger description names many phrasings so the skill fires reliably from natural language.
+- **Concise, trigger-rich descriptions.** Each skill's frontmatter description states what it does, when to use it, and its output boundary in a few lines — enough distinct trigger vocabulary to fire reliably from natural language, no redundant paraphrase chains. We practice the context discipline we sell.
 - **Honest skip path.** If a skill's preconditions aren't met (no agent surface, no observability, no traffic), it stops and says so. It does not fabricate a deliverable.
 - **Markdown output, committed into the partner repo.** All deliverables go to `<repo>/.ratel/` so they're reviewable, diff-able, and accumulate across runs.
 - **Cross-skill references, not duplication.** Shared vocabulary lives in one place; every other skill links to it.

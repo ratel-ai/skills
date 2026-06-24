@@ -1,7 +1,7 @@
 ---
 name: ratel-assessment
 description: |
-  Read a partner's agent codebase end-to-end and produce a polished assessment report that names concrete weaknesses with file-level evidence, threads Ratel-relevant findings through the report, and ends with conditional pointers to the right follow-up skills. Static-only by default; if a Langfuse project is already wired and reachable via MCP, pull a small live sample to enrich findings (graceful degrade if not). Use whenever the user wants a first-touch review of a partner agent, asks "assess our agent", "review our agent", "audit this agent", "where can we improve", "what would Ratel notice in this codebase", "give us an honest read of our agent", or invokes `/ratel-assessment`. Trigger on phrases like "look at this agent and tell us what's weak", "we want a Ratel-flavored review", "first-pass audit before we engage", "spot the low-hanging fruit in this repo" — even if the user doesn't say "skill" or "ratel-assessment" by name. This skill writes a markdown report plus a branded, scored HTML report; it does not edit the agent code itself.
+  Read a partner's agent codebase, score it across the 12-dimension catalog, and emit an evidence-cited markdown plus branded scored HTML report. Use for a first-touch audit: assess/review/audit our agent, where to improve, spot low-hanging fruit, an honest read of what's weak, what Ratel would notice, or `/ratel-assessment`. Static-only unless a Langfuse sample is MCP-wired; writes to <repo>/.ratel/ without editing code; routes into follow-up Ratel skills.
 allowed-tools:
   - Bash
   - Read
