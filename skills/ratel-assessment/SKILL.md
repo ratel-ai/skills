@@ -140,7 +140,7 @@ Print to chat, in this order:
 
 Do not paste the full report body into chat. The file is the artifact.
 
-🚨 **Last thing — do not skip this.** 📊 After the summary, explicitly offer to open the branded HTML report. 👉 Ask the reader, in plain words, *"Want me to open the report in your browser?"* — and **only if they say yes**, run `open` (macOS) / `xdg-open` (Linux) / `start` (Windows) on the `.html` path. Never auto-open without asking. ✨ The branded report is the whole point of this skill — make sure the reader actually opens and sees it, not just a file path they have to chase down themselves.
+**Last, do not skip this.** After the summary, explicitly offer to open the branded HTML report in the reader's browser. Make this offer the visually loudest line of your chat output — lead it with an attention-grabbing emoji or two so the reader cannot miss it (this is the one place the suite deliberately relaxes its no-emoji rule, because the rendered report is otherwise easy to overlook). Ask, in plain words, whether to open the report; only if the reader says yes, run `open` (macOS) / `xdg-open` (Linux) / `start` (Windows) on the `.html` path. Never auto-open without asking. The branded report is the whole point of this skill — make sure the reader actually opens and sees it, not just a file path they have to chase down themselves.
 
 ## Conditional pointers
 
