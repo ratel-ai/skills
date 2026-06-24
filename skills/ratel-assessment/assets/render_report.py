@@ -17,7 +17,10 @@ Payload schema (see assets/sample-payload.json for a full worked example):
       "scope": str, "data_sources": str,
       "overall_score": float,                 # 0–10, one decimal
       "summary": str,                         # paragraphs separated by blank lines
-      "dimensions": [ {"name": str, "label": str, "score": float}, ... ],  # 12, catalog order
+      "dimensions": [ {"name": str, "label": str, "score": float,
+                       "why": str | null}, ... ],  # 12, catalog order. `why` (optional)
+                                                    # is the per-dimension "why this score"
+                                                    # shown in the scorecard dropdown.
       "category_takeaways": { "<category name>": str, ... },  # optional; one-line "so what"
                                                               # per category (see CATEGORIES)
       "findings": [ {
@@ -59,29 +62,65 @@ SEVERITY_ORDER = ["Critical", "Major", "Minor", "Info"]
 # ── Category taxonomy: the twelve dimensions roll up into four scored groups ─────────
 # The radar keeps all twelve axes (detailed shape); the bars show these four
 # categories (the simpler read). Each category score is the mean of its member
-# dimensions; the per-category "so what" line comes from the payload.
+# dimensions; the per-category "so what" line comes from the payload. `key` drives
+# CSS class suffixes and `color` is the category hue (drives the radar grouping +
+# legend + hero mini-bars). `short` is the compact label for tight spots.
 CATEGORIES = [
     {
+        "key": "arch",
         "name": "Architecture & orchestration",
+        "short": "Architecture",
+        "color": "var(--cat-arch)",
         "blurb": "How the agent is structured: its topology, how work is split into steps, and how models are chosen per step.",
         "dims": ["Agent topology", "Decomposition", "Model routing"],
     },
     {
+        "key": "context",
         "name": "Context & tools",
+        "short": "Context & tools",
+        "color": "var(--cat-context)",
         "blurb": "What the model sees on every turn: the tool catalog, the system prompt, and how tightly both are scoped and named.",
         "dims": ["Tool surface", "Context management", "Prompt decomposition", "Definition quality"],
     },
     {
+        "key": "reliab",
         "name": "Reliability & safety",
+        "short": "Reliability",
+        "color": "var(--cat-reliab)",
         "blurb": "Whether the agent behaves correctly and safely: failure handling, quality gates that catch regressions, and guardrails.",
         "dims": ["Error handling", "Eval / quality gates", "Safety"],
     },
     {
+        "key": "ops",
         "name": "Operations",
+        "short": "Operations",
+        "color": "var(--cat-ops)",
         "blurb": "Whether you can see and control the agent in production: tracing/observability and cost discipline.",
         "dims": ["Observability", "Cost discipline"],
     },
 ]
+
+# dim name → (category index, category dict). Built once from CATEGORIES.
+DIM_TO_CAT = {
+    name: (i, cat) for i, cat in enumerate(CATEGORIES) for name in cat["dims"]
+}
+
+# Static "what it measures" line per dimension (shown in the scorecard dropdown).
+# The model supplies the per-dimension *score* and *why*; these descriptions are fixed.
+DIM_INFO = {
+    "Agent topology": "Shape of the agent graph — single vs multi-agent, recursion, and whether responsibilities are cleanly separated.",
+    "Tool surface": "Size and shape of the tool catalog the model sees each turn: how many tools, how they're scoped, and whether they're pre-filtered.",
+    "Context management": "How the prompt, conversation, and working state are assembled, versioned, and pruned on each turn.",
+    "Decomposition": "Whether complex tasks are broken into sub-steps or sub-agents instead of one monolithic call.",
+    "Model routing": "Whether the right model is chosen per step (cost vs capability) rather than one model for everything.",
+    "Error handling": "How tool failures, timeouts, and malformed model output are caught, retried, and surfaced.",
+    "Observability": "Whether runs are traced — tool calls, tokens, latency, and errors visible outside the running process.",
+    "Cost discipline": "Controls on token spend: output caps, context trimming, caching, and avoiding redundant calls.",
+    "Eval / quality gates": "Whether an automated eval/test suite catches regressions before they ship.",
+    "Safety": "Guardrails on inputs and outputs — prompt-injection defense, PII handling, and limits on unsafe actions.",
+    "Prompt decomposition": "Whether the system prompt is lean and modular rather than a monolith carrying every concern each turn.",
+    "Definition quality": "How well tools/skills are named and described for both the model and retrieval — clear 'when to use', parameter names, and enums.",
+}
 
 # Short labels for the radar axes (long dimension names don't fit on a spoke).
 SHORT_LABELS = {
@@ -182,11 +221,24 @@ def render_gauge(score):
 </svg>'''
 
 
-# ── Radar: 12-axis web with the agent's score shape ────────────────────────────────
+# ── Radar: 12-axis web, axes grouped by category (colored wedges + rim arcs) ────────
 def render_radar(dimensions):
     cx, cy, R = 180.0, 150.0, 106.0
-    n = len(dimensions)
+
+    # Order the axes by category so each category occupies one contiguous arc.
+    # Off-catalog dimensions are intentionally omitted here too, so the radar stays
+    # consistent with the scorecard + mini-bars (which only know the four categories);
+    # main() warns to stderr if any dimension name falls outside the catalog.
+    ordered = []  # (dim, category)
+    for cat in CATEGORIES:
+        for name in cat["dims"]:
+            d = next((x for x in dimensions if x.get("name") == name), None)
+            if d is not None:
+                ordered.append((d, cat))
+
+    n = len(ordered)
     step = 360.0 / n if n else 30.0
+    half = step / 2.0
 
     rings = []
     for level in (2, 4, 6, 8, 10):
@@ -194,12 +246,36 @@ def render_radar(dimensions):
         pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in (polar(cx, cy, rr, i * step) for i in range(n)))
         rings.append(f'<polygon points="{pts}" class="r-ring" />')
 
+    # Category wedge fills + bold rim arcs (the grouping cue the legend maps to).
+    wedges, rims = [], []
+    i = 0
+    while i < n:
+        cat = ordered[i][1]
+        j = i
+        while j + 1 < n and ordered[j + 1][1] is cat:
+            j += 1
+        if cat is not None:
+            a0, a1 = i * step - half, j * step + half
+            wx0, wy0 = polar(cx, cy, R, a0)
+            wx1, wy1 = polar(cx, cy, R, a1)
+            large = 1 if (a1 - a0) > 180 else 0
+            wedges.append(
+                f'<path d="M {cx:.1f} {cy:.1f} L {wx0:.2f} {wy0:.2f} '
+                f'A {R:.1f} {R:.1f} 0 {large} 1 {wx1:.2f} {wy1:.2f} Z" '
+                f'style="fill:{cat["color"]}" class="r-wedge" />'
+            )
+            rims.append(
+                f'<path d="{arc_path(cx, cy, R + 3, a0 + 2, a1 - 2)}" '
+                f'style="stroke:{cat["color"]}" class="r-rim" />'
+            )
+        i = j + 1
+
     spokes, labels = [], []
-    for i, dim in enumerate(dimensions):
+    for i, (dim, _cat) in enumerate(ordered):
         deg = i * step
         ex, ey = polar(cx, cy, R, deg)
         spokes.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{ex:.1f}" y2="{ey:.1f}" class="r-spoke" />')
-        lx, ly = polar(cx, cy, R + 16, deg)
+        lx, ly = polar(cx, cy, R + 18, deg)
         dx = lx - cx
         anchor = "middle" if abs(dx) < 6 else ("start" if dx > 0 else "end")
         if ly < cy - R * 0.55:
@@ -215,29 +291,61 @@ def render_radar(dimensions):
         )
 
     shape_pts, dots = [], []
-    for i, dim in enumerate(dimensions):
+    for i, (dim, _cat) in enumerate(ordered):
         score = max(0.0, min(10.0, float(dim.get("score", 0))))
-        _, color, _ = band_for(score)
         rr = R * score / 10.0
         x, y = polar(cx, cy, rr, i * step)
         shape_pts.append(f"{x:.1f},{y:.1f}")
-        dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.4" fill="{color}" class="r-dot" />')
+        dots.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" class="r-dot" />')
     shape = " ".join(shape_pts)
 
-    return f'''<svg viewBox="0 0 360 300" role="img" aria-label="Radar of dimension scores">
+    return f'''<svg viewBox="0 0 360 300" role="img" aria-label="Radar of the twelve dimension scores, grouped by category">
   <style>
+    .r-wedge {{ opacity:0.08; }}
+    .r-rim {{ fill:none; stroke-width:3; stroke-linecap:round; opacity:0.9; }}
     .r-ring {{ fill:none; stroke:var(--hairline); stroke-width:1; }}
     .r-spoke {{ stroke:var(--hairline); stroke-width:1; }}
     .r-label {{ font-family:var(--mono); font-size:10px; fill:var(--muted-fg); }}
-    .r-shape {{ fill:color-mix(in srgb, var(--brand-orange) 16%, transparent); stroke:var(--brand-orange); stroke-width:2; stroke-linejoin:round; }}
-    .r-dot {{ stroke:#fff; stroke-width:1; }}
+    .r-shape {{ fill:color-mix(in srgb, var(--brand-orange) 15%, transparent); stroke:var(--brand-orange); stroke-width:2; stroke-linejoin:round; }}
+    .r-dot {{ fill:var(--brand-orange); stroke:#fff; stroke-width:1; }}
   </style>
+  {''.join(wedges)}
   {''.join(rings)}
   {''.join(spokes)}
+  {''.join(rims)}
   <polygon points="{shape}" class="r-shape" />
   {''.join(dots)}
   {''.join(labels)}
 </svg>'''
+
+
+# ── Category legend (reused under both radars) — maps the four hues to categories ────
+def render_category_legend():
+    items = "".join(
+        f'<span><i style="background:{cat["color"]}"></i>{html.escape(cat["short"])}</span>'
+        for cat in CATEGORIES
+    )
+    return f'<div class="legend legend--cat">{items}</div>'
+
+
+# ── Hero mini-bars: the four category scores beside the radar (numbers only) ─────────
+def render_category_minibars(dimensions):
+    by_name = {d.get("name", ""): d for d in dimensions}
+    rows = []
+    for cat in CATEGORIES:
+        members = [by_name[name] for name in cat["dims"] if name in by_name]
+        if not members:
+            continue
+        score = sum(float(m.get("score", 0)) for m in members) / len(members)
+        pct = max(0.0, min(10.0, score)) / 10.0 * 100.0
+        rows.append(
+            f'<div class="mini cat-{cat["key"]}">'
+            f'<div class="mini__top"><span class="mini__name">{html.escape(cat["short"])}</span>'
+            f'<span class="mini__val">{fmt_score(score)}</span></div>'
+            f'<div class="mini__bar"><i style="--w:{pct:.2f}%"></i></div>'
+            f"</div>"
+        )
+    return "\n".join(rows)
 
 
 # ── Scorecard rows: four category bars (mean of member dims) with description + so-what ──
@@ -271,9 +379,43 @@ def render_scorecard(dimensions, takeaways=None):
             else ""
         )
 
+        # Expandable per-dimension detail: what it measures + why this score.
+        subdims = []
+        for m in members:
+            mname = m.get("name", "")
+            mscore = float(m.get("score", 0))
+            mcls, _, mlabel = band_for(mscore)
+            mpct = max(0.0, min(10.0, mscore)) / 10.0 * 100.0
+            desc = DIM_INFO.get(mname, "")
+            why = m.get("why")
+            why_html = (
+                f'<p class="subdim__why"><span class="k">Why this score —</span> {md_inline(why)}</p>'
+                if why
+                else ""
+            )
+            subdims.append(
+                f'<div class="subdim band-{mcls}">'
+                f'<div class="subdim__head"><span class="subdim__name">{html.escape(mname)}</span>'
+                f'<span class="subdim__score">{fmt_score(mscore)}<small> / 10</small> '
+                f'<span class="chip chip--sm band-{mcls}">{html.escape(mlabel)}</span></span></div>'
+                f'<div class="subdim__bar"><i style="width:{mpct:.2f}%"></i></div>'
+                f'<p class="subdim__desc">{html.escape(desc)}</p>'
+                f"{why_html}"
+                f"</div>"
+            )
+        details = (
+            f'<details class="cat-more"><summary>'
+            f'<span class="cat-more__label">Sub-dimensions &amp; scoring</span>'
+            f'<span class="cat-more__meta">{len(members)} dimensions</span>'
+            f'<span class="chev" aria-hidden="true">▾</span></summary>'
+            f'<div class="subdims">{"".join(subdims)}</div></details>'
+        )
+
         rows.append(
             f'<div class="cat-row band-{cls}">'
-            f'<div class="cat-head"><span class="cat-name">{html.escape(cat["name"])}</span>'
+            f'<div class="cat-head"><span class="cat-name">'
+            f'<span class="cat-tick" style="background:{cat["color"]}"></span>'
+            f'{html.escape(cat["name"])}</span>'
             f'<span class="chip band-{cls}">{html.escape(label)}</span></div>'
             f'<p class="cat-desc">{html.escape(cat["blurb"])}</p>'
             f'<div class="bar-track">'
@@ -282,6 +424,7 @@ def render_scorecard(dimensions, takeaways=None):
             f"</div>"
             f'<p class="cat-dims">{dims_line}</p>'
             f"{sowhat}"
+            f"{details}"
             f"</div>"
         )
     return "\n".join(rows)
@@ -358,6 +501,15 @@ def main():
         template = fh.read()
 
     dimensions = data.get("dimensions", [])
+    # Surface any dimension whose name isn't in the catalog — it would be silently
+    # dropped from the scorecard, mini-bars, and radar (see CATEGORIES / DIM_TO_CAT).
+    unknown = [d.get("name", "") for d in dimensions if d.get("name") not in DIM_TO_CAT]
+    if unknown:
+        print(
+            f"warning: {len(unknown)} dimension(s) not in any category and omitted from "
+            f"the scorecard/radar: {unknown}",
+            file=sys.stderr,
+        )
     overall = data.get("overall_score")
     if overall is None and dimensions:
         overall = round(sum(float(d.get("score", 0)) for d in dimensions) / len(dimensions), 1)
@@ -388,6 +540,8 @@ def main():
         "{{SUMMARY}}": md_blocks(data.get("summary", "")),
         "{{OVERALL_GAUGE_SVG}}": render_gauge(overall),
         "{{RADAR_SVG}}": render_radar(dimensions),
+        "{{CATEGORY_LEGEND}}": render_category_legend(),
+        "{{CATEGORY_MINIBARS}}": render_category_minibars(dimensions),
         "{{SCORECARD_ROWS}}": render_scorecard(dimensions, data.get("category_takeaways")),
         "{{FINDINGS}}": render_findings(data.get("findings", [])),
         "{{WHERE_RATEL_FITS}}": optional[0] if len(optional) > 0 else "",
