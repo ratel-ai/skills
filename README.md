@@ -43,7 +43,7 @@ The `npx skills` CLI is [Vercel Labs' open agent skills tool](https://github.com
 Want a read on your agent first? The assessment is free and static — no setup:
 
 ```text
-Run npx skills add ratel-ai/skills --all and use the skills to assess the agents in this codebase and show me where Ratel would help.
+Run npx skills add ratel-ai/skills --all and use the skills to assess the agents in this codebase
 ```
 
 Ready to wire Ratel in? Go straight to the integration plan:
