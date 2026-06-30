@@ -73,6 +73,7 @@ Run an Explore agent (or do it directly for small repos) to answer:
 2. **What's the catalog size today and what's expected at steady state?** — Ratel's lift grows with catalog size; under ~15 tools the win is too small to justify the integration, and the plan should say so.
 3. **Is there a single dispatcher** (good — drop-in replace) **or are tools dispatched inline** (need a small refactor)?
 4. **What's the user-facing latency budget?** — Ratel's retrieval adds <1ms, but the customer should know.
+5. **Is the agent on prompt caching (Anthropic/Bedrock prompt cache, etc.) with multi-turn tool loops?** — decisive for the within-process strategy in Step 4. A naive replace-mode pre-filter rewrites the `tools:` block every turn, which sits near the start of the cached prefix and **invalidates the whole system+tools cache each turn** — it can cost more tokens than it saves. Cache-sensitive agents want recall mode (stable eager tools), not replace mode.
 
 Capture this in 4-6 bullets in the plan.
 
@@ -99,7 +100,12 @@ Capture three things from whatever docs you read: the **current shipped version*
 
 Based on Step 1's classification and Step 3's docs, pick one (and only one) primary integration mode:
 
-- **Direct SDK** (TS `@ratel-ai/sdk`, or Python `ratel-ai` — `pip install ratel-ai`, at full parity) — import the Ratel SDK in the agent process, register tools into a `ToolCatalog`, swap the agent's tool list for `catalog.search(query, topK).map(asToolDef)` (replace mode) or expose the unified gateway tools (`search_capabilities` / `invoke_tool`, plus `get_skill_content` if a `SkillCatalog` is registered). Register a `SkillCatalog` too for customers who also ship playbook-style skills.
+- **Direct SDK** (TS `@ratel-ai/sdk`, or Python `ratel-ai` — `pip install ratel-ai`, at full parity) — import the Ratel SDK in the agent process, register tools into a `ToolCatalog`, and pick a **within-process strategy**:
+  - **Replace mode** — swap the agent's tool list for protected-core ∪ `catalog.search(query, topK)`. Simplest; fine for stateless / single-shot calls.
+  - **Recall mode** — keep a **stable eager tool list** (protected core + the gateway meta-tools) and append per-turn BM25 hits as a synthetic `search_capabilities` tool-output at the transcript suffix. Use this when the agent is on prompt caching with multi-turn loops — replace mode busts the cache, recall mode preserves it.
+  - **Gateway mode** — expose the unified gateway tools (`search_capabilities` / `invoke_tool`, plus `get_skill_content` if a `SkillCatalog` is registered) and let the agent discover on demand. Most token-efficient at large catalogs; costs a discovery turn.
+
+  Two non-negotiables for replace and recall: (1) a **protected core** of must-keep tools (control loop, workspace readers, build chain) that BM25 never trims, or trimmed tools surface as `NoSuchToolError`; (2) an empty-query/no-match fallback that keeps the full pool. Register a `SkillCatalog` too for customers who also ship playbook-style skills, and pass it as the second arg to `searchCapabilitiesTool` so one search ranks tools and skills together. See [`references/integration-patterns.md`](references/integration-patterns.md) for the cache trap, the protected-core snippet, and the recall-mode shape.
 - **MCP gateway** — run `ratel serve` (or `@ratel-ai/mcp-server`) as a process; configure the customer's agent to talk to it via MCP. Their existing tool sources get ingested into the gateway as upstreams.
 - **Hybrid** — Direct SDK for the agent's local tools; MCP gateway as one of the agent's MCP clients for upstream-provided tools. Only recommend this when both kinds of tool surfaces exist.
 
@@ -141,6 +147,7 @@ The integration is worthless if no one can prove it worked. Name the **exact das
 - **Token Cost & Savings** dashboard — the headline. Split by `feature_flag` tag. The plan must guarantee `input_tokens` per `chat-turn` trace will land in the arm tag correctly.
 - **Retrieval Quality** dashboard — needs `ratel.search_capabilities` observations with `top_hit_score`, `hit_count`, `top_k`. The plan must specify these get emitted (see your vendor integrate skill's Ratel hooks — for Langfuse, [`ratel-hooks.md`](../ratel-langfuse-integrate/references/ratel-hooks.md)).
 - **Gateway Origin Split** dashboard — needs `metadata.gateway_origin = direct | agent` on every Ratel observation.
+- **Stranded-tool guardrail** — a per-turn `ratel_unavailable_tool_call` score (calls to a tool the pre-filter trimmed, distinguished from genuine hallucinations). This is the safety signal that proves the protected-core / recall setup didn't break tool access; it must trend to ~0. Pair it with `ratel_protected_count` if the customer wants to see how much of the pool the protected core holds. For cache-sensitive agents, also watch cached-vs-uncached input tokens on the Token Cost dashboard — that's where a replace-mode cache regression shows up.
 - **Scores** — recommend wiring `tool_selection_accuracy` and `top_k_recall_at_5` if any form of ground truth (gold-labelled tool ids per task, eval dataset) exists.
 
 If the customer has not yet run `/ratel-observability-assessment` and their vendor integrate skill, **do not proceed** to Step 8. Route them back. Building a Ratel plan that nobody can measure produces an unverifiable engagement.
@@ -150,7 +157,8 @@ If the customer has not yet run `/ratel-observability-assessment` and their vend
 Before writing the plan, check what you don't know and ask. The skill must surface its assumptions, not bury them. Common questions:
 
 - Is there a preferred Ratel version to pin to? (default: whatever's `latest` per Step 3)
-- Which Ratel feature(s) does the partner most want to validate first — tool retrieval (shipped), first-class skills (shipped, v0.1.6 line), gateway origin pattern (shipped), or a roadmap one (v0.1.9 suggestions, v0.1.10 decomposition, etc.)?
+- Which Ratel feature(s) does the partner most want to validate first — tool retrieval (shipped), first-class skills (shipped), gateway origin pattern (shipped), or a roadmap one (suggestions, decomposition, etc.)?
+- Is the agent on prompt caching with multi-turn tool loops? (decides replace vs recall mode — see Step 2/Step 4; cache-sensitive ⇒ recall)
 - Is there ground truth labelling for any task, even for a subset? (drives the score-wiring decision)
 - Are there cost/latency budgets the integration must not bust?
 - Is the agent in production, internal preview, or pre-launch? (changes risk tolerance for A/B)
@@ -169,7 +177,7 @@ Output to `<repo>/.ratel/ratel-integrate.md`. Sections, in order:
 6. **Metrics & dashboards** — table mapping the Ratel-value dashboards from your vendor integrate skill (Langfuse shown as the example) to "now / after rollout / after pilot expansion."
 7. **Roadmap pointers** — only what's directly relevant to this customer (e.g., if they care about suggestions, mention v0.1.9; if they care about decomposition, mention v0.1.10). First-class skills are already shipped (v0.1.6 line), so they belong in the integration plan, not here. Don't list the whole roadmap.
 8. **Open questions** — anything still ambiguous from Step 8.
-9. **Verification checklist** — five items the customer can tick after the integration lands: pilot trace_name uses Ratel, `feature_flag` tag is split correctly, `ratel.search_capabilities` observations appear, Token Cost & Savings dashboard shows separation between arms, Retrieval Quality dashboard has data.
+9. **Verification checklist** — six items the customer can tick after the integration lands: pilot trace_name uses Ratel, `feature_flag` tag is split correctly, `ratel.search_capabilities` observations appear, `ratel_unavailable_tool_call` trends to ~0 (no stranded tools), Token Cost & Savings dashboard shows separation between arms (and, for cache-sensitive agents, the treatment arm's cached-token ratio did not regress), Retrieval Quality dashboard has data.
 
 Print the table of contents inline in chat (six bullets max) and tell the user the file path. Do not paste the full plan body into the chat.
 

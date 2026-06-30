@@ -2,14 +2,16 @@
 
 The per-mode and per-framework code shapes for wiring Ratel into an agent. Read this **after** Step 3 of the skill — i.e., after you have the up-to-date docs in hand. If anything here disagrees with the latest docs, trust the docs and flag this file for an update.
 
-Public Ratel surface (as of v0.1.6):
+Public Ratel surface (as of v0.2.0 — verify against the live docs per Step 3, the API moves fast):
 
-- TS SDK: `@ratel-ai/sdk` — `ToolCatalog`, `SkillCatalog`, `searchCapabilitiesTool`, `invokeToolTool`, `getSkillContentTool`, `registerMcpServer`
+- TS SDK: `@ratel-ai/sdk` — `ToolCatalog`, `ToolRegistry` (metadata-only index, no executors), `SkillCatalog`, `searchCapabilitiesTool(catalog, skillCatalog?)`, `invokeToolTool(catalog)`, `getSkillContentTool(skillCatalog)`, `registerMcpServer(catalog, config)`. One search tool spans both catalogs — pass the `SkillCatalog` as the second arg to `searchCapabilitiesTool` and it ranks tools and skills in the same call ("one search tool, two catalogs").
 - Python SDK: `ratel-ai` (`pip install ratel-ai`, shipped at full parity) — `ToolCatalog`, `SkillCatalog`, `Skill`, `search_capabilities_tool`, `invoke_tool_tool`, `get_skill_content_tool`, `register_mcp_server`. (Package is `ratel-ai`, not `ratel`.)
 - CLI: `@ratel-ai/cli` — `ratel serve`, `ratel mcp add | list | edit`, `ratel inspect`
-- MCP server: `@ratel-ai/mcp-server` (also published as `ratel-mcp`) — exposes the unified `search_capabilities`, `invoke_tool`, and `get_skill_content` to any MCP client. (`search_tools` remains as a deprecated tools-only shim; prefer `search_capabilities`.)
+- MCP server: `@ratel-ai/mcp-server` (also published as `ratel-mcp`) — exposes the unified `search_capabilities`, `invoke_tool`, and `get_skill_content` to any MCP client. (`search_tools` remains as a **deprecated** tools-only compat alias as of v0.2.0; prefer `search_capabilities`.)
 
 `search_capabilities(query, topKTools?, topKSkills?)` returns `{ tools: { groups }, skills: [...] }` — two independently-ranked BM25 buckets. `get_skill_content(skillId)` returns `{ body }`; skills are read, not executed.
+
+> **Two patterns below are integration-level, not SDK functions.** "Protected core" and "recall mode" are things *you* build around these primitives — there is no `protectedCore()` or `recallMode()` export. They came out of a real rollout (see the cache + protected-core sections) and the skill teaches them because the naive replace-mode default strands tools and busts the prompt cache. Don't go looking for an SDK call.
 
 ## Mode 1 — Direct SDK (TypeScript)
 
@@ -41,15 +43,30 @@ for (const tool of allTools) {
   });
 }
 
-// 3a. Replace-mode (pre-filter): swap the model's tool list for top-K hits.
-const hits = catalog.search(currentUserMessage, /* topK = */ 8, "direct");
-const filteredTools = hits.flatMap(({ toolId }) => catalogTools.filter(t => t.id === toolId));
+// 3a. Replace-mode (pre-filter): swap the model's tool list for protected core + top-K hits.
+// PROTECTED CORE: BM25 ranks the *whole* pool, so a thin or off-topic query can trim a tool
+// the agent always needs (the control loop, workspace readers, a build toolchain). When that
+// trimmed tool is later called the model gets a NoSuchToolError. Keep a hardcoded must-keep set
+// unconditionally and rank only the discretionary tail: result = protected ∪ topK(tail).
+const protectedIds = protectedToolNames(profile, agentId); // your manifest, intersected with the live pool
+const tail = catalogTools.filter(t => !protectedIds.has(t.id));
+const hits = catalog.search(currentUserMessage, /* topK = */ 8, "direct"); // ranks the tail
+const filteredTools = [
+  ...catalogTools.filter(t => protectedIds.has(t.id)),
+  ...hits.flatMap(({ toolId }) => tail.filter(t => t.id === toolId)),
+];
+// Empty-query / no-match fallback: keep the full pool rather than stranding everything.
 const result = await generateText({ model, tools: filteredTools, /* ... */ });
 
-// 3b. Gateway-mode: expose `search_capabilities` and `invoke_tool` so the agent can reach more on demand.
+// 3b. Gateway-mode: expose the unified gateway tools so the agent can reach more on demand.
+// Pass the SkillCatalog as the 2nd arg to searchCapabilitiesTool to rank tools + skills in one call.
 const result = await generateText({
   model,
-  tools: { search_capabilities: searchCapabilitiesTool(catalog), invoke_tool: invokeToolTool(catalog) },
+  tools: {
+    search_capabilities: searchCapabilitiesTool(catalog, skillCatalog),
+    invoke_tool: invokeToolTool(catalog),
+    get_skill_content: getSkillContentTool(skillCatalog),
+  },
 });
 ```
 
@@ -67,7 +84,25 @@ for tool in all_tools:
 tools = {"search_capabilities": search_capabilities_tool(catalog), "invoke_tool": invoke_tool_tool(catalog)}
 ```
 
-For most pilots, use **replace-mode with topK=8** as the default. Gateway mode is more powerful but adds an extra model turn per discovery.
+**Choosing the within-process strategy (replace vs recall vs gateway) — read this before defaulting to replace.**
+
+Replace-mode is the simplest, but on a prompt-cache-sensitive agent it can *cost* tokens rather than save them — see [Replace vs recall: the prompt-cache trap](#replace-vs-recall-the-prompt-cache-trap) below. Quick rule:
+
+- **Agent on prompt caching (Anthropic, etc.) with multi-turn tool loops → recall mode.** Stable eager tool list = cache survives.
+- **Stateless / single-shot calls, or no caching → replace-mode with topK=8 + protected core.** Simplest, and there's no cached prefix to bust.
+- **Very large catalog and the agent can handle a discovery turn → gateway mode.** Most token-efficient at scale but adds a model turn per discovery.
+
+### Replace vs recall: the prompt-cache trap
+
+Replace-mode rewrites the model's `tools:` parameter every turn. That block sits near the **start** of the provider's cached prefix (system + tools), so rewriting it **invalidates the entire system+tools prefix every turn** — you pay it uncached on every call. On a cache-sensitive agent this can wipe out, or exceed, the savings from sending fewer tool definitions. The skill's headline "Token Cost & Savings" dashboard is exactly where this regression shows up, so don't ship replace-mode blind on a cached agent.
+
+**Recall mode** decouples *callable* from *discoverable* and keeps the cache intact:
+
+1. The eager `tools:` list stays **stable across turns** — protected core + the gateway meta-tools (`search_capabilities`, `invoke_tool`, `get_skill_content`). A stable prefix stays cached.
+2. Per-turn BM25 recall is appended as a **synthetic `search_capabilities` tool-output at the transcript suffix** — it *extends* the cached prefix instead of busting it; prior turns' recall messages stay untouched.
+3. The long tail is **parked, not trimmed** (off to the side, e.g. on the runner's context), and reached on demand via `invoke_tool`. Nothing is stranded; a thin query degrades to a deterministic always-recall set so unavailable-tool calls trend to ~0.
+
+Recall mode is an integration pattern you build on top of the SDK primitives (stable eager set + a function that materialises the recall tool-output each turn), not a single SDK call. Gate it behind a flag, default off, and prove the cache win on the Token Cost & Savings dashboard before enabling.
 
 If the customer also ships playbook-style skills, register a `SkillCatalog` alongside the `ToolCatalog`: skills are indexed on name/description/tags and surfaced via the `search_capabilities` skills bucket, then read on demand with `getSkillContentTool` / `get_skill_content_tool` (`get_skill_content(skillId) → { body }`). Skills are loaded, not executed — there is no `invoke_skill`.
 
@@ -110,7 +145,7 @@ Shape:
 
 1. Register the local tools into a `ToolCatalog` via the direct SDK (Mode 1).
 2. Use `registerMcpServer(catalog, { name, transport })` to ingest each MCP upstream into the **same** catalog. Tools land with the `upstream__` prefix.
-3. Expose `searchCapabilitiesTool(catalog)` + `invokeToolTool(catalog)` to the agent (add `getSkillContentTool(catalog)` if a `SkillCatalog` is also registered). Search ranks across local and upstream uniformly; invocation routes to the right executor automatically.
+3. Expose `searchCapabilitiesTool(catalog, skillCatalog?)` + `invokeToolTool(catalog)` to the agent (add `getSkillContentTool(skillCatalog)` if a `SkillCatalog` is also registered). Search ranks across local and upstream uniformly; invocation routes to the right executor automatically.
 
 This mode is exactly Mode 1 plus `registerMcpServer` calls. Don't dual-instantiate.
 
@@ -143,9 +178,11 @@ This mode is exactly Mode 1 plus `registerMcpServer` calls. Don't dual-instantia
 
 For each agent surface the plan touches, the per-file changes must answer:
 
-1. **Mode**: direct SDK / MCP gateway / hybrid.
-2. **Init site**: the file + line where the `ToolCatalog` is constructed (Mode 1) or where `ratel serve` is launched (Mode 2).
+1. **Mode**: direct SDK / MCP gateway / hybrid, **and** the within-process strategy (replace / recall / gateway) with the cache rationale in one sentence.
+2. **Init site**: the file + line where the `ToolCatalog` (and `SkillCatalog`, if any) is constructed (Mode 1) or where `ratel serve` is launched (Mode 2).
 3. **Registration site**: where every tool the agent uses is registered.
-4. **Swap site**: where the agent's `tools:` parameter is replaced with the top-K or with the gateway tools.
-5. **Metadata wiring**: where `gateway_origin`, `top_k`, `hit_count`, `top_hit_score`, `replace_mode` get attached to the Langfuse observation. See [`ratel-langfuse-integrate/references/ratel-hooks.md`](../../ratel-langfuse-integrate/references/ratel-hooks.md).
-6. **Flag check**: where the A/B feature flag is read to decide which arm of the split the request belongs to (see [`ab-test-patterns.md`](ab-test-patterns.md)).
+4. **Protected core**: the must-keep tool set (control loop, workspace readers, build chain, …) that BM25 must never trim, and where that manifest lives. Required for replace and recall modes.
+5. **Swap site**: where the agent's `tools:` parameter is replaced with protected-core + top-K (replace), or where the stable eager list is set and the per-turn recall tool-output is appended (recall), or where the gateway tools are exposed.
+6. **Metadata wiring**: where `gateway_origin`, `top_k`, `hit_count`, `top_hit_score`, `replace_mode` get attached to the Langfuse observation. See [`ratel-langfuse-integrate/references/ratel-hooks.md`](../../ratel-langfuse-integrate/references/ratel-hooks.md).
+7. **Stranded-tool guardrail**: where a per-turn `ratel_unavailable_tool_call` score is emitted (count of calls to a tool the pre-filter trimmed, distinguished from genuine hallucinations via the removed-name set). This is the signal that proves protected-core / recall didn't break tool access; it should trend to ~0.
+8. **Flag check**: where the A/B feature flag is read to decide which arm of the split the request belongs to (see [`ab-test-patterns.md`](ab-test-patterns.md)).
