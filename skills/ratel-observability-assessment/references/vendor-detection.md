@@ -1,8 +1,8 @@
-# Vendor detection
+# Backend detection
 
-How to detect which AI-observability vendor a codebase already uses, so `/ratel-observability-assessment` can route to the matching vendor `*-integrate` skill. Scan three places per vendor: **manifest dependencies**, **environment variables**, and **typical init/import sites** in code. Treat a manifest dependency or an init/import site as a strong signal; an env var alone (it may be a leftover or a half-finished setup) as a weak signal — confirm with code where possible. Report a confidence level (high / medium / low) for the detected vendor in the proposal.
+How to detect which OTel-compatible backend a codebase already exports to, so `/ratel-observability-assessment` can pick the export target for Ratel's native OTLP spans. Ratel emits stock OTLP, so every backend below is a valid export target — the question is only which one the team already runs. Scan three places per backend: **manifest dependencies**, **environment variables**, and **typical init/import sites** in code. Treat a manifest dependency or an init/import site as a strong signal; an env var alone (it may be a leftover or a half-finished setup) as a weak signal — confirm with code where possible. Report a confidence level (high / medium / low) for the detected backend in the proposal.
 
-The vendor list below seeds from the observability vendors `ratel-assessment` already detects (Langfuse, LangSmith, OTel, OpenInference, OpenLLMetry, Helicone, homegrown), extended with the rest of the supported set.
+The backend list below seeds from the observability tools `ratel-assessment` already detects (Langfuse, LangSmith, OTel, OpenInference, OpenLLMetry, Helicone, homegrown), extended with the rest of the OTLP-capable set.
 
 ## Langfuse
 
@@ -48,19 +48,21 @@ The vendor list below seeds from the observability vendors `ratel-assessment` al
 
 ## When nothing is detected
 
-If none of the above produce even a weak signal, do **not** guess. Fall back to the AskUserQuestion step in the skill: ask which AI-observability tool the team uses (offer the supported vendors plus "none yet" and "other"). A wrong auto-detection routes the customer to the wrong integrate skill, which is worse than asking.
+If none of the above produce even a weak signal, do **not** guess. Fall back to the AskUserQuestion step in the skill: ask which OTel-compatible backend the team runs (offer the backends above plus "none yet" and "other"). Guessing wrong sends the spans to a backend nobody watches, which is worse than asking.
 
-## Vendor → skill routing
+## Backend → how you export Ratel's OTLP spans to it
 
-| Detected vendor | Route to |
+Every backend below ingests OTLP, so exporting Ratel's native spans is the same two shapes everywhere (see [`native-telemetry-setup.md`](native-telemetry-setup.md) for the code): **greenfield** — `configureTelemetry()` / `configure_telemetry()` owns the OTel provider and points its OTLP exporter at the backend's collector endpoint; or **dual-export** — add `ratelSpanProcessor()` / `ratel_span_processor()` to the provider the backend's own SDK already installed, so Ratel's `ratel.*` / `gen_ai.*` spans ride the existing export to that backend.
+
+| Detected backend | How you export Ratel's spans to it |
 | --- | --- |
-| Langfuse | [`/ratel-langfuse-integrate`](../../ratel-langfuse-integrate/SKILL.md) |
-| LangSmith | [`/ratel-langsmith-integrate`](../../ratel-langsmith-integrate/SKILL.md) |
-| PostHog | No concrete skill yet — the generic plan applies; `/ratel-posthog-integrate` can be authored on request. |
-| Arize Phoenix | No concrete skill yet — the generic plan applies; `/ratel-phoenix-integrate` can be authored on request. |
-| Helicone | No concrete skill yet — the generic plan applies; `/ratel-helicone-integrate` can be authored on request. |
-| OpenLLMetry / OTel GenAI | No concrete skill yet — the generic plan applies; `/ratel-otel-integrate` can be authored on request. |
-| Braintrust | No concrete skill yet — the generic plan applies; `/ratel-braintrust-integrate` can be authored on request. |
-| None yet | Recommend adopting Langfuse or LangSmith, then route to the matching integrate skill. |
+| Langfuse | Dual-export onto Langfuse's OTel provider, or point the OTLP exporter at Langfuse's `/api/public/otel` endpoint with the project's Basic/Bearer auth. |
+| LangSmith | Point the OTLP exporter at LangSmith's OTEL endpoint (`.../otel`) with `x-api-key` / project headers, or dual-export onto its provider. |
+| PostHog | Export via an OTel collector that fans out to PostHog's LLM-analytics ingestion; PostHog is not natively OTLP, so route through a collector. |
+| Arize Phoenix | Dual-export onto the OpenInference/OTel provider Phoenix already registers, or send OTLP to `PHOENIX_COLLECTOR_ENDPOINT`. |
+| Helicone | Helicone is a proxy, not a span sink — keep Ratel's spans on a real OTLP backend and let Helicone stay on the LLM-call path; or use Helicone's OTLP ingest endpoint where enabled. |
+| OpenLLMetry / OTel GenAI | Already an OTel provider — dual-export `ratelSpanProcessor()` / `ratel_span_processor()` onto it; the spans land wherever that provider already ships them. |
+| Braintrust | Point the OTLP exporter at Braintrust's OTEL endpoint with its API key, or dual-export onto an existing provider that ships there. |
+| None yet | Recommend Langfuse or LangSmith (fastest OTLP-native start) or a self-hosted collector; note Ratel Cloud (Coming Soon) as the eventual first-party ingest. |
 
-For any vendor without a concrete skill, the vendor-neutral proposal this skill writes is still fully actionable — it states what to instrument and which dashboards to build; only the exact SDK wiring and widget specs are deferred until a vendor skill is authored.
+Whichever backend the team lands on, the proposal is fully actionable — the span/attribute names to emit and the dashboards to build are the same; only the collector endpoint and auth header differ.

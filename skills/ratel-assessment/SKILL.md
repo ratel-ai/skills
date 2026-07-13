@@ -1,7 +1,7 @@
 ---
 name: ratel-assessment
 description: |
-  Read a partner's agent codebase, score it across the 12-dimension catalog, and emit an evidence-cited markdown plus branded scored HTML report. Use for a first-touch audit: assess/review/audit our agent, where to improve, spot low-hanging fruit, an honest read of what's weak, what Ratel would notice, or `/ratel-assessment`. Static-only unless a Langfuse sample is MCP-wired; writes to <repo>/.ratel/ without editing code; routes into follow-up Ratel skills.
+  Read a partner's agent codebase, score it across the 12-dimension catalog, and emit an evidence-cited markdown plus branded scored HTML report. Use for a first-touch audit: assess/review/audit our agent, where to improve, spot low-hanging fruit, an honest read of what's weak, what Ratel would notice, or `/ratel-assessment`. Static-only unless a live telemetry sample (any OTLP/OTel backend — Ratel, Langfuse, LangSmith) is MCP-wired; writes to <repo>/.ratel/ without editing code; routes into follow-up Ratel skills.
 allowed-tools:
   - Bash
   - Read
@@ -65,17 +65,19 @@ Launch one **Explore** agent (or do it directly for small repos) with a single, 
 6. **Model routing** — which models get called for which tasks; whether routing is task-aware or uniform.
 7. **Error handling** — try/except shape around tool calls; retry presence; backoff; dead-letter.
 8. **Memory / retrieval** — vector store, RAG pipeline, conversation memory, summarization.
-9. **Observability config** — Langfuse / Langsmith / OTel / OpenInference / OpenLLMetry / Helicone / homegrown logging. Env vars, init sites.
+9. **Observability config** — Ratel SDK native OTLP telemetry / Langfuse / LangSmith / OTel / OpenInference / OpenLLMetry / Helicone / homegrown logging. Env vars, init sites.
 10. **Eval surface** — eval directory, fixtures, ground-truth dataset, CI invocations.
 
 Keep the inventory inside the analysis context — it is not a deliverable. The report cites it; it does not include it.
 
-### Step 3 — Detect observability and probe the vendor if reachable
+### Step 3 — Detect observability and probe the backend if reachable
+
+Ratel's telemetry is native OpenTelemetry: the SDKs emit the retrieval + tool funnel as `gen_ai.*` spans (semconv v1.42.0) plus a `ratel.*` overlay (`ratel.search`, `execute_tool <tool id>`, `ratel.skill.load`), exported as stock OTLP to whatever OTel backend the partner already runs — Langfuse, LangSmith, their own collector, or Ratel Cloud (Coming Soon). Ratel does not emit LLM-call spans; those stay with the partner's own LLM instrumentation. So detection stays vendor-neutral: look for any telemetry surface, not a specific vendor.
 
 Two checks:
 
-1. **Static**: are any of the following present? Langfuse SDK in manifest; Langfuse env vars in `.env*` / sample envs / docker-compose; LangSmith SDK; OTel exporter pointing somewhere agent-shaped; OpenInference / OpenLLMetry instrumentation.
-2. **Live (best effort)**: if any observability vendor (Langfuse, LangSmith, ...) is wired and reachable — credentials present and the vendor's MCP server is configured for this session — attempt one cheap aggregate query (e.g., for Langfuse: trace count in the last 24h on the most recent trace_name). If it returns data, fetch a small sample (≤50 traces/runs) and use it to enrich the relevant findings (tool surface count, error rate, latency). If the call fails for any reason — auth, network, no project, no traces — **fall back silently** to static-only. Do not surface the failure as a finding; it is not the partner's bug.
+1. **Static**: are any of the following present? Ratel SDK native telemetry (`configureTelemetry` / `configure_telemetry`, `ratelSpanProcessor` / `ratel_span_processor`, `RATEL_URL`, or the local `trace=` JSONL stream); an OTel/OTLP exporter pointing somewhere agent-shaped; Langfuse SDK or env vars in `.env*` / sample envs / docker-compose; LangSmith SDK; OpenInference / OpenLLMetry instrumentation.
+2. **Live (best effort)**: if any telemetry backend is wired and reachable — credentials present and that backend's MCP server is configured for this session — attempt one cheap aggregate query (e.g., trace count in the last 24h on the most recent trace/service name). If it returns data, fetch a small sample (≤50 traces/runs) and use it to enrich the relevant findings (tool surface count, error rate, latency, and — where Ratel's SDK is emitting — the retrieval funnel: `top_k`, `hit_count`, `top_hit_score`, `origin`). If the call fails for any reason — auth, network, no project, no traces — **fall back silently** to static-only. Do not surface the failure as a finding; it is not the partner's bug.
 
 The catalog distinguishes between findings that need live data ("Untyped tool observations" — observable only with traces) and findings that don't ("Tool sprawl by count" — observable statically). Static-only runs simply skip the live-data findings; they don't degrade the rest.
 
@@ -150,7 +152,7 @@ The "Recommended next steps" section is conditional on findings. Never list a sk
 | --- | --- |
 | Any Observability finding (`Weak` or `Missing`), OR observability present and you want the funnel | `/ratel-observability-assessment` |
 | Any Tool surface finding tagged with a Ratel angle | `/ratel-integrate` |
-| Decomposition / topology Ratel-angle finding present | `/ratel-integrate` (with a note that decomposition support is roadmap v0.1.10) |
+| Decomposition / topology Ratel-angle finding present | `/ratel-integrate` (with a note that automated decomposition support is roadmap, Coming Soon) |
 | Prompt decomposition finding (`Weak` or `Missing` dimension) | `/ratel-decompose-prompt` |
 | Definition quality finding (`Weak` or `Missing` dimension) | `/ratel-tune-definitions` |
 | None of the above | omit the section entirely |
@@ -189,3 +191,5 @@ Reads from (does not duplicate):
 
 - [`../ratel-observability-assessment/references/semantic-conventions.md`](../ratel-observability-assessment/references/semantic-conventions.md) — shared vendor-neutral span/session/tag/attribute vocabulary
 - [`../ratel-observability-assessment/references/ratel-value-map.md`](../ratel-observability-assessment/references/ratel-value-map.md) — the single source of truth for Ratel feature → observable signal → version
+
+When pointing a partner at Ratel's own docs, use [docs.ratel.sh](https://docs.ratel.sh) — the tool-retrieval concept lives at https://docs.ratel.sh/docs/core/tool-retrieval and the native-telemetry guide at https://docs.ratel.sh/docs/core/telemetry.

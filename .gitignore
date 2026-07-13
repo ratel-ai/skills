@@ -9,3 +9,7 @@ node_modules/
 skills-lock.json
 __pycache__/
 *.pyc
+
+# local agent tooling / workspace scratch
+.claude/
+.context/

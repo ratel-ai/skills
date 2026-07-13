@@ -1,7 +1,7 @@
 ---
 name: ratel-observability-assessment
 description: |
-  Inspect an agent codebase to decide where tracing belongs, which dashboards prove value, and which observability vendor is in use, then write a vendor-neutral proposal whose naming/tagging vocabulary downstream skills consume. Use when mounting observability, asking where tracing goes or what to instrument/measure, designing dashboards, naming your vendor (Langfuse/LangSmith/PostHog), asking what proves Ratel's value, or `/ratel-observability-assessment`. Entry point of the funnel (reached from /ratel-assessment); routes to the matching vendor integrate skill. Writes one living markdown file to <repo>/.ratel/; does not edit code or call a vendor API; skips when there's no agent surface.
+  Inspect an agent codebase to decide where tracing belongs, turn on Ratel's native OTLP telemetry, and pick the OTel backend the team already runs to export to, then write a proposal covering instrumentation, backend selection, and the dashboards that prove value. Use when mounting observability, asking where tracing goes or what to instrument/measure, turning on Ratel telemetry, choosing an OTel backend (Langfuse/LangSmith/collector/Ratel Cloud), designing dashboards, asking what proves Ratel's value, or `/ratel-observability-assessment`. Entry point of the funnel (reached from /ratel-assessment); hands off to /ratel-integrate for rollout. Writes one living markdown file to <repo>/.ratel/; does not edit code or call a backend API; skips when there's no agent surface.
 allowed-tools:
   - Bash
   - Read
@@ -13,13 +13,13 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# /ratel-observability-assessment — propose observability for an agent codebase, vendor-neutrally
+# /ratel-observability-assessment — turn on native OTLP telemetry for an agent codebase
 
-Mount observability on a customer's codebase the way the Ratel team would: detect the stack, map the agent's mental model, decide one consistent naming/tagging vocabulary, decide which dashboards prove value, **detect (or ask for) the observability vendor**, and write a proposal the customer can act on — then route them to the vendor-specific integrate skill that does the concrete wiring. The proposal is the deliverable. Do not edit the agent code, and do not call any vendor API.
+Mount observability on a customer's codebase the way the Ratel team would: detect the stack, map the agent's mental model, decide one consistent naming/tagging vocabulary, decide which dashboards prove value, **turn on Ratel's native OTLP telemetry and pick the OTel backend the team already exports to**, and write a proposal the customer can act on. The proposal is the deliverable. Do not edit the agent code, and do not call any backend API.
 
-This skill exists because "where do I put tracing" and "what dashboards prove value" are ~80% vendor-neutral questions — only the concrete SDK wiring and widget specs are vendor-shaped. This skill owns the vendor-neutral 80%; the vendor `*-integrate` skills own the 20%. It is the entry point of the observability funnel, usually reached when [`/ratel-assessment`](../ratel-assessment/SKILL.md) flags the Observability dimension as Weak or Missing.
+Ratel's telemetry **is** OpenTelemetry: the SDKs natively emit the retrieval + tool funnel as `gen_ai.*` spans (semconv v1.42.0) plus a `ratel.*` overlay, exported as stock OTLP. So the wiring is not vendor-shaped — you turn on native telemetry once and export those spans to whatever OTel backend the team already runs (Langfuse, LangSmith, your own collector, or Ratel Cloud — Coming Soon). This skill owns the whole decision: where tracing belongs, what agent-level spans to add alongside Ratel's funnel, which backend to export to, and which dashboards prove value. It is the entry point of the observability funnel, usually reached when [`/ratel-assessment`](../ratel-assessment/SKILL.md) flags the Observability dimension as Weak or Missing.
 
-The vocabulary and dashboard set it lands on become the contract for the downstream vendor `*-integrate` and `*-analyze` skills, which expect the names/tags/metadata and dashboards defined here to actually show up.
+The vocabulary and dashboard set it lands on become the contract the team builds against in whichever backend they export to, so the span/attribute names defined here actually show up on the dashboards.
 
 ## Philosophy: trace the mental model, not the call graph
 
@@ -29,7 +29,7 @@ A common failure mode is "wrap every function in a span." That produces data tha
 
 ### Step 1 — Detect the stack
 
-Read manifest files to identify language and framework. Stack *detection* is vendor-neutral; stack-specific *code* lives in the vendor skills.
+Read manifest files to identify language and framework. Ratel's native telemetry ships for TypeScript and Python, so the stack profile mainly tells you which SDK (`@ratel-ai/sdk` vs `ratel-ai`) and which framework hooks the wiring uses.
 
 ```bash
 # TypeScript / Node detection
@@ -50,7 +50,7 @@ Map dependencies to one of these stack profiles:
 | `openai` / `anthropic` / `langchain` / `llama_index` (no agent framework) | Python generic |
 | `langgraph`, `crewai`, `agno`, `autogen` | Python agentic |
 
-If signals overlap (e.g. both a LangGraph supervisor and raw OpenAI calls inside), pick the agentic profile as primary and note the mixed-stack callout in the proposal. The vendor `*-integrate` skill carries the stack-specific code reference for whichever profile you land on.
+If signals overlap (e.g. both a LangGraph supervisor and raw OpenAI calls inside), pick the agentic profile as primary and note the mixed-stack callout in the proposal. [`references/native-telemetry-setup.md`](references/native-telemetry-setup.md) carries the concrete wiring (TS + Python) for whichever profile you land on.
 
 If you cannot identify any agent surface at all (no LLM client imports, no agent framework, no model calls), use the [honest skip path](#honest-skip-path).
 
@@ -65,60 +65,61 @@ Launch one **Explore** agent (or do it directly for very small repos) to answer 
 
 Capture this as a small topology diagram in the proposal (ASCII or Mermaid). It does not need to be exhaustive — it needs to give the customer a single picture they can point at while implementing.
 
-### Step 3 — Detect the observability vendor
+### Step 3 — Detect which OTel backend you export to
 
-Read [`references/vendor-detection.md`](references/vendor-detection.md) and scan manifest deps, env vars, and init/import sites for each supported vendor (Langfuse, LangSmith, PostHog, Arize Phoenix, Helicone, OpenLLMetry/OTel GenAI, Braintrust). Reuse the vendor signals `ratel-assessment` already gathers if you have them. Record the detected vendor and a confidence level (high / medium / low) per that reference's rules — a manifest dep or init site is a strong signal; an env var alone is weak.
+Because Ratel emits stock OTLP, the only backend question is: where do those spans land? Read [`references/vendor-detection.md`](references/vendor-detection.md) and scan manifest deps, env vars, and init/import sites for each backend the team might already run (Langfuse, LangSmith, PostHog, Arize Phoenix, Helicone, OpenLLMetry/OTel GenAI, Braintrust) — every one of them ingests OTLP. Reuse the observability signals `ratel-assessment` already gathers if you have them. Record the detected backend and a confidence level (high / medium / low) per that reference's rules — a manifest dep or init site is a strong signal; an env var alone is weak.
 
-### Step 4 — If no vendor found, ask the user
+### Step 4 — If no backend found, recommend one
 
-If Step 3 produces no signal (or only a weak, ambiguous one), do not guess. Use **AskUserQuestion** to ask which AI-observability tool the team uses, offering: **Langfuse**, **LangSmith**, **PostHog**, **other**, **none yet**.
+If Step 3 produces no signal (or only a weak, ambiguous one), do not guess. Use **AskUserQuestion** to ask which OTel-compatible backend the team runs, offering: **Langfuse**, **LangSmith**, **own OTel collector**, **other**, **none yet**.
 
-- If they pick a supported vendor, proceed with that as the detected vendor (confidence: stated).
-- If they pick **other**, capture the name; the generic proposal still applies and you route to "author on request" (Step 8).
-- If they pick **none yet**, recommend adopting one (Langfuse or LangSmith are the two with concrete integrate skills) and still deliver the full generic proposal, then route to the recommended vendor's integrate skill.
+- If they name a backend, proceed with it as the export target (confidence: stated).
+- If they pick **other**, capture the name; any OTLP backend works — record it as the export target.
+- If they pick **none yet**, recommend adopting one (Langfuse and LangSmith are the fastest OTLP-native starting points; a self-hosted collector works too) and note Ratel Cloud (Coming Soon) as the eventual first-party option. Deliver the full proposal either way.
 
-### Step 5 — Propose instrumentation, vendor-neutrally
+### Step 5 — Turn on native telemetry and propose agent-level spans
 
-Apply [`references/instrumentation-philosophy.md`](references/instrumentation-philosophy.md) (mental model, not call graph; the two anti-patterns) and [`references/semantic-conventions.md`](references/semantic-conventions.md) (unit-of-work naming, step kinds, session/thread sourcing, tags, metadata keys) to the topology from Step 2. State *what* to capture — which units of work, which steps, which session id source, which names/tags/metadata — and *why*. Leave *how* (the exact SDK calls, the exact primitive names) to the vendor skill.
+Ratel emits its retrieval + tool funnel natively as OTel spans. The proposal's instrumentation section has two halves:
 
-List every name/tag/metadata key the proposal introduces in one table the customer can paste into a shared doc. The downstream skills read this table; if it's missing they can't function.
+1. **Turn on Ratel's native OTLP telemetry** — link [`references/native-telemetry-setup.md`](references/native-telemetry-setup.md). Pick the setup path: greenfield `configureTelemetry()` / `configure_telemetry()` (Ratel owns the OTel provider and exports to `RATEL_URL`), or dual-export `ratelSpanProcessor()` / `ratel_span_processor()` bolted onto the team's existing provider. State which path fits the codebase and why. This is the wiring — there is nothing left for a downstream skill to "render."
+2. **Add the agent-level spans Ratel does not emit** — apply [`references/instrumentation-philosophy.md`](references/instrumentation-philosophy.md) (mental model, not call graph; the two anti-patterns) and [`references/semantic-conventions.md`](references/semantic-conventions.md) (unit-of-work naming, step kinds, session/thread sourcing, tags, attribute keys) to the topology from Step 2. Ratel's `ratel.*` funnel spans join the same trace as the customer's own LLM-call and agent spans — Ratel does **not** emit `chat <model>` spans, so name the session boundary, the agent-step and model-call spans, and the session-id source. State *what* to capture and *why*.
 
-### Step 6 — Propose dashboards, vendor-neutrally
+List every span/tag/attribute key the proposal introduces in one table the customer can paste into a shared doc, so the dashboards below have names to group on.
 
-From [`references/general-agent-dashboards.md`](references/general-agent-dashboards.md), pick the agent-health dashboards the instrumentation will support: Latency & Cost Overview, Error Surface, Tool Usage, Session Quality, Model & Prompt Drift. These are useful regardless of Ratel.
+### Step 6 — Propose dashboards
 
-Add the **Ratel-value group** *conditionally* — only if Ratel is present in the manifest or the customer has signed up to adopt it. Name those dashboards from [`references/ratel-value-map.md`](references/ratel-value-map.md) (Token Cost & Savings, Retrieval Quality, Gateway Origin Split, Skill Retrieval Health, Upstream Health), and footnote any roadmap-conditional ones with their target Ratel version. If Ratel is not present and there is no plan to introduce it, skip this group entirely — do not pre-bake a Ratel pitch into a customer-owned doc.
+From [`references/general-agent-dashboards.md`](references/general-agent-dashboards.md), pick the agent-health dashboards the instrumentation will support: Latency & Cost Overview, Error Surface, Tool Usage, Session Quality, Model & Prompt Drift. These are useful regardless of Ratel. Render them in whichever OTel backend the team chose in Step 3.
 
-List *which* dashboards and *why* each matters (one plain-English line per dashboard). The concrete widget specs are the vendor skill's job; do not render widgets here.
+Add the **Ratel-value group** *conditionally* — only if Ratel is present in the manifest or the customer has signed up to adopt it. Name those dashboards from [`references/ratel-value-map.md`](references/ratel-value-map.md) (Token Cost & Savings, Retrieval Quality, Origin Split, Skill Retrieval Health, Upstream Health), and footnote any roadmap-conditional ones. If Ratel is not present and there is no plan to introduce it, skip this group entirely — do not pre-bake a Ratel pitch into a customer-owned doc.
+
+List *which* dashboards and *why* each matters (one plain-English line per dashboard). The concrete span/attribute names each dashboard groups on come from [`references/semantic-conventions.md`](references/semantic-conventions.md) and [`references/ratel-value-map.md`](references/ratel-value-map.md); the customer builds the widgets in their backend's UI.
 
 ### Step 7 — Write the proposal
 
-Write to `<repo>/.ratel/ratel-observability-assessment.md` — a **single living file, not date-stamped**, so the downstream vendor `*-integrate` skill always reads a stable path. Create the `.ratel/` directory if it doesn't exist; ask the user to confirm the path if the repo already uses a different docs convention. Overwrite on re-run.
+Write to `<repo>/.ratel/ratel-observability-assessment.md` — a **single living file, not date-stamped**, so the follow-up [`/ratel-integrate`](../ratel-integrate/SKILL.md) run always reads a stable path. Create the `.ratel/` directory if it doesn't exist; ask the user to confirm the path if the repo already uses a different docs convention. Overwrite on re-run.
 
 The proposal must contain, in this order:
 
 1. **Summary** — one paragraph: stack detected, agent topology, what's already instrumented (if anything), what this proposal adds.
-2. **Detected vendor** — the vendor and confidence level (or the user's stated answer from Step 4).
+2. **Export target** — the OTel backend and confidence level (or the user's stated answer from Step 4).
 3. **Topology** — the diagram from Step 2.
-4. **Vendor-neutral instrumentation strategy** — the naming/tagging/metadata table and the session-boundary plan from Step 5; call out either anti-pattern you found.
+4. **Instrumentation strategy** — how to turn on Ratel's native telemetry (which setup path from Step 5), plus the agent-level span/tag/attribute table and the session-boundary plan; call out either anti-pattern you found.
 5. **Recommended dashboards** — the agent-health group and, conditionally, the Ratel-value group from Step 6, each with its one-line "why".
-6. **Ratel angle** (conditional, only if Ratel is present or planned) — which findings map to which Ratel feature/version per `references/ratel-value-map.md`.
-7. **Recommended next step** — the matching vendor `*-integrate` skill, per the routing table below.
+6. **Ratel angle** (conditional, only if Ratel is present or planned) — which findings map to which Ratel capability per `references/ratel-value-map.md`.
+7. **Recommended next step** — hand off to [`/ratel-integrate`](../ratel-integrate/SKILL.md), per the routing table below.
 
-Print the table of contents inline in the chat — seven bullets max — the detected vendor, and the recommended next-step skill. Do not paste the full proposal body into the chat; the file is the artifact.
+Print the table of contents inline in the chat — seven bullets max — the export target, and the recommended next step. Do not paste the full proposal body into the chat; the file is the artifact.
 
-### Step 8 — Route to the matching vendor integrate skill
+### Step 8 — Turn on telemetry, then hand off to /ratel-integrate
 
 End the proposal and the inline summary with the route:
 
-| Vendor | Route to |
+| Situation | Route to |
 | --- | --- |
-| Langfuse | [`/ratel-langfuse-integrate`](../ratel-langfuse-integrate/SKILL.md) |
-| LangSmith | [`/ratel-langsmith-integrate`](../ratel-langsmith-integrate/SKILL.md) |
-| PostHog / Arize Phoenix / Helicone / OpenLLMetry-OTel / Braintrust | No concrete skill yet — this vendor-neutral proposal fully applies; a `/ratel-<vendor>-integrate` skill can be authored on request. |
-| None yet | Recommend adopting Langfuse or LangSmith, then route to that vendor's integrate skill. |
+| Turning on telemetry | [`references/native-telemetry-setup.md`](references/native-telemetry-setup.md) — the concrete TS + Python wiring (greenfield `configureTelemetry` / dual-export `ratelSpanProcessor`), content-capture opt-in, and the local trace stream |
+| Rolling Ratel out + proving it | [`/ratel-integrate`](../ratel-integrate/SKILL.md) — plans the rollout (direct SDK / Ratel Local / hybrid) and the A/B tied to these native-telemetry metrics |
 
-The integrate skill reads `.ratel/ratel-observability-assessment.md` as its input. Tell the user that.
+`/ratel-integrate` reads `.ratel/ratel-observability-assessment.md` as one of its inputs. Tell the user that.
 
 ## Honest skip path
 
@@ -128,13 +129,14 @@ If after Step 1 you cannot find a single LLM client import, agent loop, or model
 
 Forced observability proposals on a non-agent codebase produce dead documents and waste partner trust. Better to skip and ask.
 
-If the stack is one the vendor skills don't yet have a code reference for (e.g. Ruby, Go, or a niche framework), still produce the vendor-neutral proposal — the instrumentation strategy and dashboard set are stack-agnostic — but mark the stack-specific wiring "to be derived by analogy with the Python generic patterns" and ask whether to spawn a follow-up to author a new stack reference. Don't fake confidence.
+Ratel's native telemetry ships for TypeScript and Python. If the agent is in another language (e.g. Ruby, Go, or a niche framework), still produce the proposal — the instrumentation strategy and dashboard set are stack-agnostic, and the team can export Ratel's OTLP spans from a TS/Python Ratel Local sidecar — but mark the in-process SDK wiring "TS/Python only" and ask whether Ratel Local (MCP) is the right integration mode for that stack. Don't fake confidence.
 
 ## Reference files
 
 - [`references/instrumentation-philosophy.md`](references/instrumentation-philosophy.md) — "trace the mental model, not the call graph" + the two anti-patterns
-- [`references/semantic-conventions.md`](references/semantic-conventions.md) — vendor-neutral naming/tagging/metadata vocabulary; shared with both vendor families
+- [`references/native-telemetry-setup.md`](references/native-telemetry-setup.md) — how to turn on Ratel's native OTLP telemetry (TS + Python): span vocabulary, greenfield vs dual-export, content-capture opt-in, local trace stream
+- [`references/semantic-conventions.md`](references/semantic-conventions.md) — the OTel span/attribute vocabulary the funnel and your agent spans share
 - [`references/general-agent-dashboards.md`](references/general-agent-dashboards.md) — stack-agnostic agent-health dashboard catalog
-- [`references/ratel-value-map.md`](references/ratel-value-map.md) — the single source of truth for what Ratel ships when → conceptual signal → version; read by `ratel-assessment` and both `*-analyze` skills
-- [`references/vendor-detection.md`](references/vendor-detection.md) — per-vendor detection signals + the vendor → skill routing table
-- [`references/finding-catalog.md`](references/finding-catalog.md) — vendor-neutral catalog of agent failure modes; shared by both `*-analyze` skills
+- [`references/ratel-value-map.md`](references/ratel-value-map.md) — the single source of truth for what Ratel ships → observable signal; read across the suite
+- [`references/vendor-detection.md`](references/vendor-detection.md) — per-backend detection signals + how you export Ratel's OTLP spans to each
+- [`references/finding-catalog.md`](references/finding-catalog.md) — catalog of agent failure modes to look for when reviewing traces in your backend

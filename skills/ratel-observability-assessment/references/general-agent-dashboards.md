@@ -1,6 +1,6 @@
 # General agent-health dashboard catalog
 
-Stack-agnostic dashboards. Useful for any instrumented agent, regardless of the observability vendor or whether Ratel is in the picture — the vendor `*-integrate` skill renders these into concrete widgets. Pick the subset that matches what the customer's instrumentation actually emits.
+Stack-agnostic dashboards. Useful for any instrumented agent, regardless of which OTel backend you export to or whether Ratel is in the picture — build these as widgets in your backend's UI, grouping on the OTel span names and attributes from [`semantic-conventions.md`](semantic-conventions.md). Pick the subset that matches what the customer's instrumentation actually emits.
 
 ## 1. Latency & Cost Overview
 

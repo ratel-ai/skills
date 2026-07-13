@@ -1,19 +1,17 @@
 # Stack detection
 
-How to classify an agent codebase into one of four stack profiles. The classification drives where the assessment workflow looks for tools, prompts, sub-agents, and observability config — and which `/ratel-observability-assessment` reference file you cross-link from the report when recommending follow-ups.
+How to classify an agent codebase into one of four stack profiles. The classification drives where the assessment workflow looks for tools, prompts, sub-agents, and observability config — and it tells you which surfaces to hand off to [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md) when recommending follow-ups.
 
-This file is intentionally light. The deep per-stack patterns (init shapes, observability wiring, telemetry conventions) live in the instrumentation skill's per-stack references. Do not duplicate them here.
+This file is intentionally light. The deep per-stack instrumentation patterns (init shapes, telemetry wiring across stacks) now live in [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md), which owns turning on Ratel's native OTLP telemetry and exporting it to whatever OTel backend the partner runs. Do not duplicate those here.
 
 ## The four profiles
 
-| Profile | Cross-link for deeper detail |
-| --- | --- |
-| Vercel AI SDK | [`../../ratel-langfuse-integrate/references/stack-vercel-ai-sdk.md`](../../ratel-langfuse-integrate/references/stack-vercel-ai-sdk.md) |
-| TypeScript generic (Mastra, direct provider SDKs, custom loops) | [`../../ratel-langfuse-integrate/references/stack-typescript-generic.md`](../../ratel-langfuse-integrate/references/stack-typescript-generic.md) |
-| Python generic (LangChain, LlamaIndex, direct provider SDKs) | [`../../ratel-langfuse-integrate/references/stack-python-generic.md`](../../ratel-langfuse-integrate/references/stack-python-generic.md) |
-| Python agentic (LangGraph, CrewAI, Agno, AutoGen) | [`../../ratel-langfuse-integrate/references/stack-python-agentic.md`](../../ratel-langfuse-integrate/references/stack-python-agentic.md) |
+- **Vercel AI SDK**
+- **TypeScript generic** (Mastra, direct provider SDKs, custom loops)
+- **Python generic** (LangChain, LlamaIndex, direct provider SDKs)
+- **Python agentic** (LangGraph, CrewAI, Agno, AutoGen)
 
-These are the Langfuse reference instrumentation patterns; LangSmith equivalents live in `ratel-langsmith-integrate/references/`.
+For the per-stack instrumentation detail behind any of these — native-telemetry setup, dual-export into an existing provider, backend selection — cross-link the report to [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md). It carries the native-OTLP wiring for each stack.
 
 ## Detection signals
 
@@ -39,7 +37,7 @@ If `ai` + `@ai-sdk/<provider>` are in the manifest and `generateText` / `streamT
 **Assessment-specific notes**:
 
 - Tool sprawl tends to live at a single call site rather than across files. Easy to count; easy to fix.
-- Observability typically wires via `@vercel/otel` + `LangfuseExporter`. The presence of `OpenTelemetry` imports does not guarantee Langfuse is reachable — check the exporter config.
+- Observability typically wires via `@vercel/otel` plus an OTLP exporter (a `LangfuseExporter`, an OTLP collector endpoint, or Ratel's native span processor). The presence of `OpenTelemetry` imports does not guarantee a backend is reachable — check the exporter config for where spans actually go.
 - `maxSteps` parameter (when present) caps the agent's tool loop; absence is a Critical finding under Error handling if the agent loops on tools.
 
 ### TypeScript generic
@@ -86,8 +84,8 @@ LangChain / LlamaIndex / raw provider SDKs all land here unless the codebase als
 
 **Assessment-specific notes**:
 
-- The `@observe()` decorator from `langfuse` is the most common observability wiring; absence is a strong signal Dimension 7 (Observability) is Weak or Missing.
-- LangChain's `AgentExecutor` ships its own callback handler; check that it's wired to a Langfuse `CallbackHandler`, not just to stdout.
+- Look for native OTel spans (Ratel's SDK emits the retrieval/tool funnel as `gen_ai.*` + `ratel.*` OTLP spans), a generic OTel/OpenLLMetry setup, or vendor decorators such as `langfuse`'s `@observe()` — any one is a positive signal. Absence of all of them is a strong signal Dimension 7 (Observability) is Weak or Missing.
+- LangChain's `AgentExecutor` ships its own callback handler; check that it's wired to a real backend (an OTLP/Langfuse/LangSmith callback), not just to stdout.
 - Tool descriptions in `@tool` decorators come from the docstring — empty docstrings are 2.c (Anemic tool descriptions).
 
 ### Python agentic
@@ -112,7 +110,7 @@ If both this profile and Python generic match, treat this as the primary profile
 **Assessment-specific notes**:
 
 - Topology is explicit in the framework's graph / crew / team objects. Dimension 1 is usually Strong on signal-presence; the questions become naming clarity and handoff plumbing.
-- These frameworks generally support OpenInference / OpenLLMetry instrumentation. Absence of any of those + absence of explicit Langfuse wiring is Dimension 7 Missing.
+- These frameworks generally support OpenInference / OpenLLMetry instrumentation, and Ratel's SDK emits its funnel as native OTLP alongside them. Absence of any OTel instrumentation and of any explicit vendor wiring (Langfuse / LangSmith / collector) is Dimension 7 Missing.
 - Recursion / depth bounds (1.c) are framework-configurable but often left at defaults — check.
 
 ## Fallback: stack unknown

@@ -56,10 +56,10 @@ For each prompt found, estimate token weight (roughly characters ÷ 4, or `wc -c
 
 ### Step 2 — Fetch up-to-date Ratel docs
 
-Ratel ships fast on the v0.1.x line — don't recite the skills API or the Skill data model from memory; pull the current state at runtime, in this order:
+Ratel ships fast — don't recite the skills API or the Skill data model from memory; pull the current state at runtime, in this order:
 
-1. **Context7 (preferred)** — via the Ratel MCP gateway (call `search_capabilities` to find Context7's resolve-library-id / get-library-docs tools, then `invoke_tool`), or a directly-configured Context7 MCP. Resolve `ratel-ai/ratel` and pull the SDK + skills docs.
-2. **docs.ratel.sh (fallback)** — WebFetch `https://docs.ratel.sh/llms.txt` (page map) then `https://docs.ratel.sh/llms-full.txt` (full text), or the specific pages `/docs/skills`, `/docs/sdks/typescript`, `/docs/sdks/python`.
+1. **Context7 (preferred)** — via Ratel Local, the local MCP server (call `search_capabilities` to find Context7's resolve-library-id / get-library-docs tools, then `invoke_tool`), or a directly-configured Context7 MCP. Resolve `ratel-ai/ratel` and pull the SDK + skills docs.
+2. **docs.ratel.sh (fallback)** — WebFetch `https://docs.ratel.sh/llms.txt` (page map) then `https://docs.ratel.sh/llms-full.txt` (full text), or the specific pages `https://docs.ratel.sh/docs/core/agent-skills`, `https://docs.ratel.sh/docs/core/sdks/typescript`, `https://docs.ratel.sh/docs/core/sdks/python`.
 3. **GitHub raw / installed package (last resort)** — `https://raw.githubusercontent.com/ratel-ai/ratel/main/README.md` and `src/sdk/ts/README.md` / `src/sdk/python/README.md`; or the customer's pinned `node_modules/@ratel-ai/sdk/README.md` / Python `ratel_ai` package README.
 
 Capture three things: the current shipped version, the `SkillCatalog` / `Skill` / `searchCapabilitiesTool` / `getSkillContentTool` API shape, and the Skill data model fields. If the fetched docs disagree with the patterns in [`references/decomposition-patterns.md`](references/decomposition-patterns.md), trust the docs and flag the file for an update in the plan.
@@ -88,11 +88,11 @@ For every extract candidate, specify the full Ratel Skill data model. Indexed fo
 - **`name`** — short human label; indexed.
 - **`description`** — pushy, multi-phrase, names the natural-language triggers of turns that need it; indexed. This is the primary retrieval surface.
 - **`tags`** — fold in both author labels ("billing", "support") AND task phrases the user actually types ("issue a refund", "customer wants money back"); indexed. Terse intent prompts match here.
-- **`tools`** — the ids of tools the skill's body calls. A typed dependency edge: when the skill matches, the gateway surfaces these tools in the tools bucket. Not indexed.
+- **`tools`** — the ids of tools the skill's body calls. A typed dependency edge: when the skill matches, `search_capabilities` surfaces these tools in the tools bucket. Not indexed.
 - **`metadata`** — project context for push-path ranking/boosting, e.g. `{"stacks": ["react"]}`. Not indexed.
 - **`body`** — the actual playbook text lifted from the prompt section, made self-contained. The dispatch payload, loaded on demand via `get_skill_content`. Not indexed.
 
-See [`references/decomposition-patterns.md`](references/decomposition-patterns.md) for field-by-field authoring guidance tied to BM25 indexing (ADR-0004: names, descriptions, tags, parameter names, and enum values are what make a definition retrievable). Cross-link the description/tags work to [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md).
+See [`references/decomposition-patterns.md`](references/decomposition-patterns.md) for field-by-field authoring guidance tied to Ratel's hybrid retrieval: the lexical arm rewards descriptive names, tags, and exact trigger terms, while the semantic arm matches paraphrase and intent — so clear, multi-phrase descriptions feed both. Cross-link the description/tags work to [`/ratel-tune-definitions`](../ratel-tune-definitions/SKILL.md).
 
 ### Step 5 — Write the lean core prompt
 
@@ -100,7 +100,7 @@ Assemble the stay-in-core sections into the new core prompt. It should contain o
 
 ### Step 6 — Show the registration wiring
 
-Show how to register the extracted skills and wire the gateway, in both TS and Python code shapes (adapt to the fetched API).
+Show how to register the extracted skills and wire the capability tools (`search_capabilities`, `get_skill_content`), in both TS and Python code shapes (adapt to the fetched API).
 
 TypeScript (`@ratel-ai/sdk`):
 
@@ -118,7 +118,7 @@ skillCatalog.register(new Skill({
   body: "/* the refund playbook lifted from the old prompt, made self-contained */",
 }));
 
-// Skills are ranked alongside tools; pass the skill catalog into the gateway tool.
+// Skills are ranked alongside tools; pass the skill catalog into the capability tools.
 const tools = {
   search_capabilities: searchCapabilitiesTool(toolCatalog, skillCatalog),
   get_skill_content: getSkillContentTool(skillCatalog),
@@ -178,7 +178,7 @@ Two skip cases:
 
 ## Reference files
 
-- [`references/decomposition-patterns.md`](references/decomposition-patterns.md) — the catalog of common prompt sections and their stay-in-core vs extract-to-skill mapping, a worked before/after example, and field-by-field Skill authoring guidance tied to BM25 indexing.
+- [`references/decomposition-patterns.md`](references/decomposition-patterns.md) — the catalog of common prompt sections and their stay-in-core vs extract-to-skill mapping, a worked before/after example, and field-by-field Skill authoring guidance tied to Ratel's hybrid retrieval.
 
 Reads from (does not duplicate):
 

@@ -1,6 +1,6 @@
 # A/B test patterns for a Ratel rollout
 
-Three strategies. Pick one per pilot; document the pick + the customer's flag/split mechanism in the plan. Whatever the strategy, every trace must land in Langfuse with a `feature_flag` tag valued either `tool_pool=full` (control) or `tool_pool=ratel` (treatment) — that tag is what the dashboards in [`ratel-langfuse-integrate/references/langfuse-value-map.md`](../../ratel-langfuse-integrate/references/langfuse-value-map.md) split on.
+Three strategies. Pick one per pilot; document the pick + the customer's flag/split mechanism in the plan. Whatever the strategy, every trace must land in the customer's OTel backend with a `feature_flag` tag valued either `tool_pool=full` (control) or `tool_pool=ratel` (treatment) — that tag is what the value dashboards from [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md) (conceptual map in [`ratel-value-map.md`](../../ratel-observability-assessment/references/ratel-value-map.md)) split on.
 
 ## Pattern 1 — Live feature flag (preferred default)
 
@@ -14,7 +14,7 @@ How it works:
 1. At each request entry point, read the flag for the current user/session. Two values: `full` (control) and `ratel` (treatment).
 2. The flag decision is made *once* per trace and propagated as the `feature_flag` trace tag.
 3. The control arm runs the agent with the customer's original tool list.
-4. The treatment arm runs the agent with Ratel's top-K (Mode 1) or via the gateway (Mode 2).
+4. The treatment arm runs the agent with Ratel's top-K (Mode 1) or via Ratel Local (Mode 2).
 5. Both arms emit traces; dashboards split on the tag.
 
 What to specify in the plan:
@@ -40,14 +40,14 @@ When to use:
 How it works:
 
 1. The production path runs unchanged and is what the user sees.
-2. In parallel, the Ratel path runs with the same input. Its output is written to Langfuse but discarded; the user never sees it.
+2. In parallel, the Ratel path runs with the same input. Its spans export to your OTel backend but its output is discarded; the user never sees it.
 3. Both runs produce traces. Tag the shadow trace `feature_flag=tool_pool=ratel` and `tag.shadow=true`; tag production `tool_pool=full`.
 
 What to specify in the plan:
 
 - Where the shadow invocation forks (the entry point or a queue consumer).
 - The cost cap (% of production traffic to shadow — default 10%).
-- How shadow output is silently logged (Langfuse, not user-facing logs).
+- How shadow output is silently logged (your OTel backend, not user-facing logs).
 
 Common pitfalls:
 
@@ -64,7 +64,7 @@ When to use:
 
 How it works:
 
-1. Collect a sample of real inputs into a Langfuse dataset (or any storage). Tag them as the baseline.
+1. Collect a sample of real inputs into a dataset (your eval store, or any OTel backend that keeps inputs). Tag them as the baseline.
 2. Replay each input through the agent under the Ratel arm offline. Log replay traces with `feature_flag=tool_pool=ratel` and `tag.replay=true`.
 3. Compare baseline traces (tagged `tool_pool=full`) and replay traces side by side.
 
@@ -103,9 +103,9 @@ Regardless of pattern, every Ratel-arm trace needs these tags / metadata for the
 | `tag.env` | `prod` / `staging` / `dev` (same in both) | same |
 | `tag.stack` | the customer's stack id (same in both) | same |
 | `tag.agent_version` | git sha or version (same in both) | same |
-| `metadata.gateway_origin` (on Ratel observations) | `direct` or `agent` | n/a |
-| `metadata.top_k` (on `ratel.search_capabilities`) | the k used | n/a |
-| `metadata.replace_mode` | `true` (Mode 1 replace) or `false` (gateway mode) | n/a |
+| `origin` (native attr on `ratel.search` span) | `direct` or `agent` | n/a |
+| `top_k` (native attr on `ratel.search` span) | the k used | n/a |
+| `replace_mode` (extra attr at the swap site) | `true` (Mode 1 replace) or `false` (gateway mode) | n/a |
 | `tag.shadow` (Pattern 2 only) | `true` on shadow traces | not present on prod traces |
 | `tag.replay` (Pattern 3 only) | `true` on replay traces | not present on baseline traces |
 
@@ -118,6 +118,6 @@ For the pilot to be called successful:
 - **Token Cost & Savings dashboard** shows ≥30% drop in input tokens on the treatment arm vs control for the pilot trace_name. (Rule of thumb; tune to the customer's expectations.)
 - **Retrieval Quality dashboard** shows recall@5 ≥0.7 over the window (if ground truth is wired) or top-hit-score distribution clearly skewed to high values.
 - **Error rate** on the treatment arm is within 1pp of the control arm (no regression).
-- **p95 latency** on the treatment arm is within +50ms of the control arm (Ratel itself adds <1ms; anything bigger is a wiring bug).
+- **p95 latency** on the treatment arm is within +50ms of the control arm (default `bm25` retrieval adds well under a millisecond; `semantic`/`hybrid` add a few ms after the local model warms up — anything bigger is a wiring bug).
 
 State these explicitly in the plan, so "did the pilot succeed?" has a one-line answer two weeks in.

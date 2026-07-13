@@ -1,8 +1,8 @@
-# Semantic conventions: naming, tagging, and metadata
+# Semantic conventions: OTel spans, attributes, and tags
 
-This is the **canonical, vendor-neutral vocabulary** every observability skill in the suite assumes. `/ratel-observability-assessment` proposes it; each vendor `*-integrate` skill renders it onto its own primitives; each vendor `*-analyze` skill filters and groups by these exact keys. If the vocabulary drifts, the funnel falls apart.
+This is the **canonical OTel vocabulary** the whole observability funnel shares. Ratel emits its retrieval + tool funnel natively as `gen_ai.*` spans (semconv **v1.42.0**) plus a `ratel.*` overlay; the naming rules below cover the agent-level spans **you** add alongside that funnel — the session boundary, agent-step, tool-call, and model-call spans Ratel does not emit — so the whole trace reads consistently in whichever OTel backend you export to. `/ratel-observability-assessment` proposes this vocabulary and the dashboards group on it directly.
 
-Each vendor `*-integrate` skill maps these concepts onto its primitives — Langfuse traces/observations/sessions/tags/metadata, LangSmith run trees/run types/metadata, OpenTelemetry spans/attributes — but the names, tags, and keys below are the contract that stays the same across vendors. Do not re-invent. If a customer pushes back on a name, the answer is "change it everywhere — the dashboard spec and the analysis filters too" — not "fine, we'll call it something else in this one place."
+Because these are OTel span names and attributes, they carry across every backend unchanged — Langfuse, LangSmith, your own collector, Ratel Cloud (Coming Soon). Do not re-invent. If a customer pushes back on a name, the answer is "change it everywhere — the dashboards group on it too" — not "fine, we'll call it something else in this one place."
 
 The three structural concepts come from `instrumentation-philosophy.md`:
 
@@ -27,7 +27,7 @@ Avoid: `POST_/api/chat`, `handler-fn`, `run`, `process`. They tell you nothing a
 
 ## Step naming
 
-One step = one thing the agent did inside a unit of work. Three kinds, three naming rules. Each vendor has a typed-step notion that these map onto (Langfuse observation types, LangSmith run types, OTel span kinds).
+One step = one thing the agent did inside a unit of work, recorded as a child OTel span. Three kinds, three naming rules.
 
 ### Agent-step (an agent role doing work)
 
@@ -48,24 +48,27 @@ tool.<tool-id>
 
 Where `<tool-id>` is the **stable id** the agent framework uses, not the friendly label. For MCP tools, include the upstream namespace: `tool.upstream__filesystem__read_file`.
 
-When Ratel is present and the agent calls Ratel's unified gateway tools, the gateway tool-calls get conceptual names:
+When Ratel is present, you do **not** name its funnel spans — Ratel emits them natively. They arrive on the same trace with these span names (do not re-create them):
 
 ```
-ratel.search_capabilities
-ratel.invoke_tool
-ratel.skill_search
-ratel.get_skill_content
+ratel.search                  # capability + skill retrieval (skills bucket rides the same span)
+execute_tool <tool id>        # standard gen_ai.operation.name=execute_tool, NOT a bespoke ratel.invoke
+ratel.skill.load              # a skill is read (not executed — there is no invoke_skill)
+ratel.upstream.register       # an upstream MCP server is ingested
+ratel.auth.flow               # OAuth 2.1 / PKCE flow events
 ```
 
-These are special and treated separately in each vendor skill's Ratel-hooks reference. `ratel.skill_search` and `ratel.get_skill_content` cover first-class skills (loaded, not executed — there is no `invoke_skill`). The `gateway_origin` metadata key maps the core's underlying `origin` field (`direct | agent`).
+Every Ratel span carries the `origin` attribute (`direct` | `agent`). See [`native-telemetry-setup.md`](native-telemetry-setup.md) for the full attribute list per span.
 
 ### Model-call (an LLM generation)
 
+Ratel does **not** emit LLM-call spans — those come from your own LLM instrumentation as OTel `gen_ai` `chat <model>` spans and join the same trace next to Ratel's funnel. Whatever emits them, keep the family in the span name:
+
 ```
-llm.<model-shortname>
+chat <model-shortname>
 ```
 
-Examples: `llm.sonnet-4-6`, `llm.gpt-4o`, `llm.haiku-4-5`. The full provider model id (e.g. `claude-sonnet-4-6-20260101`) belongs in `model_id` metadata, not in the step name. Naming the step by model family makes "cost by model" pivots trivial; naming it by exact id fragments your dashboards every time a snapshot date rolls.
+Examples: `chat sonnet-4-6`, `chat gpt-4o`, `chat haiku-4-5`. The full provider model id (e.g. `claude-sonnet-4-6-20260101`) belongs in the `gen_ai.request.model` / `model_id` attribute, not the span name. Naming the span by model family makes "cost by model" pivots trivial; naming it by exact id fragments your dashboards every time a snapshot date rolls.
 
 ## Sessions
 
@@ -79,7 +82,7 @@ Examples: `llm.sonnet-4-6`, `llm.gpt-4o`, `llm.haiku-4-5`. The full provider mod
 | Multi-step agentic run with a run id | the run id |
 | Nothing stable available | generate at the entry point, attach to the unit of work AND store wherever you'd normally keep request state |
 
-Critical: set `session_id` *as early as possible* and carry it down to every step inside the unit of work. Setting it only on the top-level unit and not propagating it to the steps means child steps don't carry it, which breaks session-level analysis. (Each vendor has a mechanism for this — Langfuse's attribute propagation, setting `session_id` metadata on every LangSmith run, OTel context propagation. The vendor skill names the exact call.)
+Critical: set `session_id` *as early as possible* and carry it down to every step inside the unit of work. Setting it only on the top-level unit and not propagating it to the steps means child steps don't carry it, which breaks session-level analysis. Use OTel context propagation so the span attribute flows to every child span, including Ratel's funnel spans on the same trace.
 
 ## User id
 
@@ -98,11 +101,11 @@ Standard tag set:
 | `agent_version` | `v<N>` or git short sha | Detect regressions across deploys |
 | `feature_flag` | flag name + arm (e.g. `tool_pool=ratel`, `tool_pool=full`) | A/B comparison surface |
 
-Cap tag count at ~6 per unit of work. More than that and the dashboard filter UI becomes useless. Do not put high-cardinality data in tags (no user ids, no session ids, no error messages). Vendors that have no first-class "tag" primitive (e.g. LangSmith) carry these as low-cardinality metadata keys instead — the vendor skill names the mechanism; the set above stays the same.
+Cap tag count at ~6 per unit of work. More than that and the dashboard filter UI becomes useless. Do not put high-cardinality data in tags (no user ids, no session ids, no error messages). In OTel these are low-cardinality span attributes; a backend that surfaces a first-class "tag" UI (e.g. Langfuse) maps them onto tags — the set above stays the same.
 
-## Metadata / attribute keys
+## Span attributes
 
-Metadata (or attributes, depending on the vendor) is fine-grained and can be high-cardinality. Use it for everything you'd want to *show on a specific unit-of-work detail view* or *aggregate in a dashboard*.
+Span attributes are fine-grained and can be high-cardinality. Use them for everything you'd want to *show on a specific unit-of-work detail view* or *aggregate in a dashboard*.
 
 Required keys (set on every relevant step):
 
@@ -118,8 +121,8 @@ Conditional keys (set when the matching feature is in play):
 | Key | When | Value |
 | --- | --- | --- |
 | `user_tier` | multi-tier product | `free` / `pro` / `enterprise` |
-| `gateway_origin` | Ratel present | `direct` (Ratel SDK call) vs `agent` (gateway tool-call) |
-| `top_k`, `hit_count`, `replace_mode` | Ratel retrieval step | per each vendor skill's Ratel-hooks reference |
+| `origin` | Ratel present | `direct` (Ratel SDK call) vs `agent` (capability tool-call); Ratel sets this natively on its spans |
+| `top_k`, `hit_count`, `top_hit_score`, `took_ms`, `replace_mode` | Ratel retrieval span | Ratel sets these natively on `ratel.search` — see [`native-telemetry-setup.md`](native-telemetry-setup.md) |
 | `prompt_arm` | running a prompt A/B | arm id |
 | `ground_truth_tool_id` | eval units with labels | the canonical correct tool id (for accuracy scoring) |
 
@@ -128,4 +131,4 @@ Conditional keys (set when the matching feature is in play):
 - **Don't put dynamic content in step names.** `tool.read_file(/etc/passwd)` is a name no dashboard can group on. The name is `tool.read_file`; the argument goes in the step's input.
 - **Don't reuse names across step kinds.** If `supervisor` is an agent-step, never use it as a tool name. Dashboards filter by kind + name; reusing names produces silent overlap.
 - **Don't tag with anything that can be a user input.** Tags are not search; they're pivots.
-- **Don't skip `session_id` on steps.** Set it on the unit of work and carry it down to every step — never inherit-by-magic. Most vendors will not back-fill if you forget.
+- **Don't skip `session_id` on steps.** Set it on the unit of work and carry it down to every step — never inherit-by-magic. Most backends will not back-fill if you forget.

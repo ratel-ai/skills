@@ -41,7 +41,7 @@ What it covers: how the agent is structured — single loop, supervisor + worker
 
 *Recommendation*: split into explicit sub-agents (supervisor + workers). The split is mechanical once the boundaries are named.
 
-*Ratel angle*: matches the "Multi-agent decomposition hints" entry (v0.1.10, roadmap). Ratel will propose decompositions automatically once shipped; until then, the manual split is the right move.
+*Ratel angle*: matches the "Multi-agent decomposition hints" entry (roadmap, Coming Soon). Ratel will propose decompositions automatically once shipped; until then, the manual split is the right move.
 
 ### 1.b Sub-agents exist but handoffs are implicit
 
@@ -49,7 +49,7 @@ What it covers: how the agent is structured — single loop, supervisor + worker
 
 *Severity*: Major — multi-turn analysis and observability are silently broken across the boundary.
 
-*Recommendation*: thread `session_id`, `user_id`, and a `parent_role` through every handoff. The Langfuse propagation pattern (`propagate_attributes(...)`) handles this once observability is wired.
+*Recommendation*: thread `session_id`, `user_id`, and a `parent_role` through every handoff. Standard OTel context propagation (or a tracer's `propagate_attributes(...)` helper) carries this once observability is wired.
 
 *Ratel angle*: none directly — fix in [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md).
 
@@ -88,7 +88,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: pre-filter the tool list per turn so the model only sees the top-K relevant tools. The full catalog stays addressable via a discovery tool.
 
-*Ratel angle*: matches "BM25 tool retrieval" and "Replace-by-default pre-filter" (shipped, v0.1.6 line). This is the textbook case Ratel was built for.
+*Ratel angle*: matches "hybrid capability retrieval" and "replace-by-default pre-filter" (shipped). Ratel ranks the catalog in-process (BM25 by default, opt-in semantic and hybrid RRF — no vector DB) and pre-filters to the top-K per turn. This is the textbook case Ratel was built for.
 
 ### 2.b Bloated tool descriptions
 
@@ -98,7 +98,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: trim descriptions to one short sentence ("what it does") + a one-line "when to use." Move examples and edge-case detail into a separate spec the agent doesn't see every turn.
 
-*Ratel angle*: matches "BM25 tool retrieval" — Ratel's relevance score also surfaces which descriptions are confusing the ranker; the dashboard will show low top-hit scores for over-described tools.
+*Ratel angle*: matches "hybrid capability retrieval" (shipped) — Ratel's relevance score also surfaces which descriptions confuse the ranker; the dashboard shows low top-hit scores for over-described tools.
 
 ### 2.c Anemic tool descriptions
 
@@ -108,7 +108,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: rewrite descriptions to answer "what does it do" and "when do you call it." The model is the audience, not the human reader.
 
-*Ratel angle*: matches "LLM-driven suggestions" (v0.1.9, roadmap). Ratel will propose description rewrites once shipped; in the meantime this is a hand-edit pass.
+*Ratel angle*: matches "LLM-driven suggestions" (roadmap, Coming Soon). Ratel will propose description rewrites once shipped; in the meantime this is a hand-edit pass.
 
 ### 2.d Duplicate / near-duplicate tools
 
@@ -118,7 +118,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: consolidate or namespace explicitly. If both must exist (different upstreams), make the descriptions sharply distinguishing ("local repo only" vs "remote workspace").
 
-*Ratel angle*: matches "MCP server ingestion (upstream namespace prefix)" (shipped, v0.1.6 line) — Ratel namespaces upstream tools automatically and ranks them, so the model only sees the relevant variant.
+*Ratel angle*: matches "MCP server ingestion (upstream namespace prefix)" (shipped) — Ratel namespaces upstream tools automatically and ranks them, so the model only sees the relevant variant.
 
 ### 2.e Dead tools
 
@@ -148,7 +148,7 @@ What it covers: tool count, naming quality, description quality, schema rigor, d
 
 *Recommendation*: summarize or paginate at the tool boundary. The tool's output is part of the agent's context; treat it accordingly.
 
-*Ratel angle*: matches "TOON encoding" (v0.1.6, rc). Ratel will compress structured tool outputs once shipped; for unstructured blobs, summarization is still the customer's job.
+*Ratel angle*: indirect — Ratel does not compress or rewrite tool outputs. Its leverage on context bloat is upstream: retrieval keeps irrelevant tool *definitions* out of the prompt, but a fat tool *result* is still the customer's to summarize or paginate at the boundary.
 
 ---
 
@@ -183,7 +183,7 @@ What it covers: prompt size, externalization, versioning, retrieval / RAG, conve
 
 *Severity*: Minor on its own; Major if there is no observability either (you can't regression-detect on a prompt you can't pin).
 
-*Recommendation*: externalize prompts to files (or to Langfuse Prompt Management). Attach `prompt_version` as observation metadata.
+*Recommendation*: externalize prompts to files (or a prompt-management service). Attach `prompt_version` as span/observation metadata.
 
 *Ratel angle*: none; this is a [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md) follow-up.
 
@@ -193,9 +193,9 @@ What it covers: prompt size, externalization, versioning, retrieval / RAG, conve
 
 *Severity*: Major — input tokens scale with the size of the knowledge dump.
 
-*Recommendation*: move static knowledge into a vector / BM25 store; retrieve top-K per turn. The model only sees what's relevant.
+*Recommendation*: move static knowledge into a retrieval store (vector or lexical); retrieve top-K per turn. The model only sees what's relevant.
 
-*Ratel angle*: indirect — Ratel itself is BM25-over-tools, not BM25-over-documents, but the customer's win pattern is the same (filter the context surface). Worth noting; do not over-claim.
+*Ratel angle*: indirect — Ratel does hybrid retrieval over tools and skills, not over documents, but the customer's win pattern is the same (filter the context surface). Worth noting; do not over-claim.
 
 ### 3.d Full-history replay every turn
 
@@ -205,7 +205,7 @@ What it covers: prompt size, externalization, versioning, retrieval / RAG, conve
 
 *Recommendation*: summarize older turns into a compact memory; replay only the recent N turns verbatim.
 
-*Ratel angle*: matches "Chat compaction" (v0.2.x, roadmap) and "Memory orchestration" (v0.3.x, roadmap). Both are roadmap-only — be honest about the timeline.
+*Ratel angle*: matches "Chat compaction" and "Memory orchestration" (both roadmap). Both are roadmap-only — be honest about the timeline.
 
 ### 3.e Skill-shaped subroutines inlined as prompt blocks
 
@@ -215,7 +215,7 @@ What it covers: prompt size, externalization, versioning, retrieval / RAG, conve
 
 *Recommendation*: extract the recurring blocks into named, retrievable units. In the meantime, deduplicate via shared prompt fragments.
 
-*Ratel angle*: matches "First-class skills" (v0.1.6, shipped). Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so extracted playbooks only enter context when relevant. Route the extraction to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md); see Dimension 11 for the fuller decomposition lens.
+*Ratel angle*: matches "First-class skills" (shipped). Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so extracted playbooks only enter context when relevant. Route the extraction to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md); see Dimension 11 for the fuller decomposition lens.
 
 ---
 
@@ -239,7 +239,7 @@ What it covers: whether the agent decomposes complex tasks into steps or tries t
 
 *Recommendation*: introduce an explicit planning step — even a single "plan first, then act" prompt round-trip improves outcomes measurably.
 
-*Ratel angle*: matches "Multi-agent decomposition hints" (v0.1.10, roadmap). State the version honestly.
+*Ratel angle*: matches "Multi-agent decomposition hints" (roadmap, Coming Soon). State the timeline honestly.
 
 ### 4.b Fan-out without fan-in
 
@@ -336,9 +336,11 @@ What it covers: retry behavior, backoff, dead-letter, user-facing failure UX, pa
 
 What it covers: presence and consistency of tracing, naming, scoring, session boundaries. The most important dimension for partner engagements because everything else hinges on the ability to measure.
 
+Where Ratel fits here: Ratel's SDKs emit the retrieval + tool funnel as native OpenTelemetry — `gen_ai.*` spans (semconv v1.42.0) plus a `ratel.*` overlay (`ratel.search`, `execute_tool <tool id>`, `ratel.skill.load`), exported as stock OTLP to whatever OTel backend the partner already runs. Ratel does not emit LLM-call (`chat <model>`) spans — those stay with the partner's own LLM instrumentation and join the same trace. So Ratel captures the retrieval/tool funnel a generic vendor setup won't (`top_k`, `hit_count`, `top_hit_score`, `took_ms`, and an `origin` of `direct` | `agent`), it complements rather than replaces a vendor, and it keeps the backend choice free via OTLP. Detection and recommendations below stay vendor-neutral.
+
 **Detection inputs**:
 
-- SDK presence — Langfuse, Langsmith, OTel, OpenInference, OpenLLMetry, Helicone.
+- SDK presence — Ratel SDK native OTLP telemetry, Langfuse, LangSmith, OTel, OpenInference, OpenLLMetry, Helicone.
 - Env vars and init sites.
 - Naming consistency vs the vocabulary in [`../../ratel-observability-assessment/references/semantic-conventions.md`](../../ratel-observability-assessment/references/semantic-conventions.md).
 - Session-id sourcing and propagation.
@@ -354,13 +356,13 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Severity*: Critical for any agent in production; Major otherwise.
 
-*Recommendation*: wire Langfuse via [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md).
+*Recommendation*: turn on telemetry via [`/ratel-observability-assessment`](../../ratel-observability-assessment/SKILL.md) — Ratel's native OTLP instrumentation exported to whatever OTel backend the partner runs (Langfuse / LangSmith / their own collector / Ratel Cloud, Coming Soon).
 
 *Ratel angle*: routes to `/ratel-observability-assessment`.
 
 ### 7.b Observability wired but no session_id
 
-*Detection*: Langfuse / Langsmith init exists, but no `session_id` is set on traces (grep for `session_id`, `setSessionId`, `propagate_attributes(session_id`).
+*Detection*: a telemetry SDK is initialized, but no `session_id` is set on traces (grep for `session_id`, `setSessionId`, `propagate_attributes(session_id`).
 
 *Severity*: Major — multi-turn analysis is impossible without sessions.
 
@@ -372,11 +374,11 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 *Detection*: tool calls land as generic `event` observations (or as `span`) with the tool name in metadata instead of as `type: tool` observations with the tool name in `name`.
 
-*Severity*: Major — blocks the native tool-call dashboards (Gateway Origin Split, Upstream Health, tool-level cost views).
+*Severity*: Major — blocks the native tool-call dashboards (Origin Split, Upstream Health, tool-level cost views).
 
-*Recommendation*: re-wrap tool calls as `type: tool` observations. One-line fix per call site once Langfuse v4 patterns are in place.
+*Recommendation*: emit tool calls as typed spans — `gen_ai.operation.name=execute_tool` with the tool id in the span name. Ratel's SDK produces these `execute_tool` spans natively; with a hand-rolled vendor setup, re-wrap the call sites to the typed shape.
 
-*Ratel angle*: same Langfuse hygiene pattern; route to `/ratel-observability-assessment`.
+*Ratel angle*: Ratel's native OTLP funnel gives these typed `execute_tool` spans for free; route to `/ratel-observability-assessment`.
 
 ### 7.d Inconsistent observation naming
 
@@ -390,13 +392,13 @@ What it covers: presence and consistency of tracing, naming, scoring, session bo
 
 ### 7.e Observability wired but never analyzed
 
-*Detection*: Langfuse is wired and reachable (live check succeeds) and there is meaningful data, but no dashboards exist, no scores are ingested, and there is no recurring review cadence anywhere in the README / runbooks.
+*Detection*: a telemetry backend is wired and reachable (live check succeeds) and there is meaningful data, but no dashboards exist, no scores are ingested, and there is no recurring review cadence anywhere in the README / runbooks.
 
 *Severity*: Minor — the data is there, the loop just isn't closed.
 
-*Recommendation*: build the dashboards via `/ratel-observability-assessment`; review live data via `/ratel-langfuse-analyze`.
+*Recommendation*: build the value dashboards and set a review cadence via `/ratel-observability-assessment`. Once Ratel's funnel spans are flowing, that skill also reads the retrieval/tool funnel from the chosen OTel backend.
 
-*Ratel angle*: routes to `/ratel-observability-assessment` and `/ratel-langfuse-analyze`.
+*Ratel angle*: routes to `/ratel-observability-assessment`.
 
 ---
 
@@ -556,7 +558,7 @@ What it covers: whether a long, monolithic system prompt could be broken into a 
 
 *Recommendation*: keep a lean core prompt (role + contract + safety) and extract the rest into retrievable skills the agent loads on demand. Output format stays in a short contract section; examples and recurring procedures become named, retrievable units.
 
-*Ratel angle*: matches "First-class skills" (v0.1.6, shipped). Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so extracted playbooks only enter context when relevant. Route to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md).
+*Ratel angle*: matches "First-class skills" (shipped). Ratel ranks skills alongside tools via `search_capabilities` and loads them on demand via `get_skill_content`, so extracted playbooks only enter context when relevant. Route to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md).
 
 ### 11.b Recurring multi-step procedures inlined as prompt prose
 
@@ -566,13 +568,13 @@ What it covers: whether a long, monolithic system prompt could be broken into a 
 
 *Recommendation*: extract each recurring procedure into one named, retrievable skill; replace the inline prose with a short reference. Deduplicate via shared fragments in the interim.
 
-*Ratel angle*: matches "First-class skills" (v0.1.6, shipped). Ratel makes the extracted procedure a first-class retrievable unit alongside tools, surfaced only when the turn calls for it. Route to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md).
+*Ratel angle*: matches "First-class skills" (shipped). Ratel makes the extracted procedure a first-class retrievable unit alongside tools, surfaced only when the turn calls for it. Route to [`/ratel-decompose-prompt`](../../ratel-decompose-prompt/SKILL.md).
 
 ---
 
 ## 12. Definition quality
 
-What it covers: the *quality* of tool **and** skill definitions as an optimizable retrieval surface. Dimension 2 (Tool surface) stays at the inventory level — count, sprawl, dead tools, duplication. This dimension is the optimization lens: given that these tools and skills exist, are their definitions written well for BM25 retrieval and model selection? Description-quality findings live primarily here; cross-reference Dimension 2 for the inventory-level cousins (2.b bloat, 2.c anemia, 2.d duplication, 2.f schemas) rather than double-counting them.
+What it covers: the *quality* of tool **and** skill definitions as an optimizable retrieval surface. Dimension 2 (Tool surface) stays at the inventory level — count, sprawl, dead tools, duplication. This dimension is the optimization lens: given that these tools and skills exist, are their definitions written well for hybrid (lexical + semantic) retrieval and model selection? Description-quality findings live primarily here; cross-reference Dimension 2 for the inventory-level cousins (2.b bloat, 2.c anemia, 2.d duplication, 2.f schemas) rather than double-counting them.
 
 **Detection inputs**:
 
@@ -589,11 +591,11 @@ What it covers: the *quality* of tool **and** skill definitions as an optimizabl
 
 *Detection*: descriptions state what the tool/skill does but never say when to reach for it, or name the definition rather than describe it. Cross-reference 2.c (anemic descriptions) at the inventory level.
 
-*Severity*: Major — the model cannot select correctly without a usage signal, and BM25 has fewer terms to match against.
+*Severity*: Major — the model cannot select correctly without a usage signal, and the lexical retrieval arm has fewer terms to match against while the semantic arm has less meaning to embed.
 
 *Recommendation*: rewrite each description as one short "what it does" sentence plus a one-line "when to use." The model is the audience, not the human reader.
 
-*Ratel angle*: BM25 indexes names + descriptions + parameter names + enum values and strips schema structure (ADR-0004), so the "when to use" clause directly drives retrieval recall. LLM-driven definition suggestions are roadmap (v0.1.9); for now this is a hand-edit pass. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+*Ratel angle*: Ratel's retrieval indexes names + descriptions + parameter names + enum values into its lexical (BM25) arm and embeds the same text for its semantic arm (hybrid fuses both via RRF), so a clear "when to use" clause drives recall on both. LLM-driven definition suggestions are roadmap (Coming Soon); for now this is a hand-edit pass. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
 
 ### 12.b Non-descriptive parameter names
 
@@ -601,9 +603,9 @@ What it covers: the *quality* of tool **and** skill definitions as an optimizabl
 
 *Severity*: Minor on its own; Major when it spans the catalog, because parameter names are part of the retrieval index.
 
-*Recommendation*: rename parameters to describe their content (`query`, `file_path`, `max_results`). The cost is one rename pass; the benefit is both clearer model selection and stronger BM25 matches.
+*Recommendation*: rename parameters to describe their content (`query`, `file_path`, `max_results`). The cost is one rename pass; the benefit is both clearer model selection and stronger retrieval matches.
 
-*Ratel angle*: BM25 indexes parameter names directly (ADR-0004), so descriptive names lift retrieval scores. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+*Ratel angle*: Ratel's retrieval indexes parameter names directly into its lexical arm (and embeds them for the semantic arm), so descriptive names lift retrieval scores. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
 
 ### 12.c Missing enums where the value space is finite
 
@@ -613,7 +615,7 @@ What it covers: the *quality* of tool **and** skill definitions as an optimizabl
 
 *Recommendation*: add `enum` listing the legal values. This tightens model selection and adds the values to the retrieval index.
 
-*Ratel angle*: BM25 indexes enum values (ADR-0004), so declaring them improves both selection and retrieval. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+*Ratel angle*: Ratel's retrieval indexes enum values (in both the lexical and semantic arms), so declaring them improves both selection and retrieval. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
 
 ### 12.d Near-duplicate descriptions across definitions
 
@@ -623,7 +625,7 @@ What it covers: the *quality* of tool **and** skill definitions as an optimizabl
 
 *Recommendation*: rewrite the descriptions to be sharply distinguishing on the dimension that actually differs ("local repo only" vs "remote workspace"), even if the tools themselves stay.
 
-*Ratel angle*: BM25 ranks on name + description + parameter names + enum values (ADR-0004); sharply distinct wording is what lets the ranker separate near-duplicates. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
+*Ratel angle*: Ratel's retrieval ranks on name + description + parameter names + enum values across both the lexical and semantic arms; sharply distinct wording is what lets the ranker separate near-duplicates. Route to [`/ratel-tune-definitions`](../../ratel-tune-definitions/SKILL.md).
 
 ---
 
