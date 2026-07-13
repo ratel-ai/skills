@@ -16,6 +16,22 @@
 
 > The fastest way to audit an AI agent codebase (TypeScript or Python), plan its observability, integrate Ratel, and fix what the audit finds — five skills, one engagement arc.
 
+## Quickstart — paste this into your coding agent
+
+Want a read on your agent first? The assessment is free and static — no setup:
+
+```text
+Run npx skills add ratel-ai/skills --all and use the skills to assess the agents in this codebase
+```
+
+Ready to wire Ratel in? Go straight to the integration plan:
+
+```text
+Run npx skills add ratel-ai/skills --all and use the skills to integrate Ratel in this project.
+```
+
+Either entry point pulls in the whole suite. The assessment writes a report to `.ratel/ratel-assessment-<date>.md` — plus a branded, scored HTML version (`.html`) alongside it — and ends with "Recommended next steps": every finding routes to the right follow-up skill (the observability assessment, the Ratel integration, or one of the two fix-skills), so you don't have to know the arc up front.
+
 ## Install
 
 ```bash
@@ -38,22 +54,6 @@ npx skills add ./skills
 ```
 
 The `npx skills` CLI is [Vercel Labs' open agent skills tool](https://github.com/vercel-labs/skills) — compatible with Claude Code, Cursor, Codex, OpenCode, Gemini CLI, and 40+ other coding agents.
-
-## Quickstart — paste this into your coding agent
-
-Want a read on your agent first? The assessment is free and static — no setup:
-
-```text
-Run npx skills add ratel-ai/skills --all and use the skills to assess the agents in this codebase
-```
-
-Ready to wire Ratel in? Go straight to the integration plan:
-
-```text
-Run npx skills add ratel-ai/skills --all and use the skills to integrate Ratel in this project.
-```
-
-Either entry point pulls in the whole suite. The assessment writes a report to `.ratel/ratel-assessment-<date>.md` — plus a branded, scored HTML version (`.html`) alongside it — and ends with "Recommended next steps": every finding routes to the right follow-up skill (the observability assessment, the Ratel integration, or one of the two fix-skills), so you don't have to know the arc up front.
 
 ## What's inside
 
