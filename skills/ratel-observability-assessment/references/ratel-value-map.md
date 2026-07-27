@@ -1,6 +1,6 @@
 # Ratel value map — feature → signal
 
-This is the **single source of truth for what Ratel ships** and the observable signal each capability produces. **Update this file whenever Ratel ships a new feature** — it is read across the suite (`ratel-assessment`, `ratel-observability-assessment`, `ratel-integrate`).
+This is the **single source of truth for what Ratel ships** and the observable signal each capability produces. **Update this file whenever Ratel ships a new feature** — it is read by `ratel-assessment` and `ratel-observability-assessment`.
 
 Because Ratel's telemetry is native OpenTelemetry, the signals below are concrete OTel span/attribute names, not an abstract vocabulary a downstream skill has to render. Ratel emits its retrieval + tool funnel as `gen_ai.*` spans (semconv v1.42.0) plus a `ratel.*` overlay; the span names and attributes below are what shows up in whichever OTel backend you export to, and the dashboards group on them directly.
 

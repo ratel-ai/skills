@@ -1,7 +1,7 @@
 ---
 name: ratel-observability-assessment
 description: |
-  Inspect an agent codebase to decide where tracing belongs, turn on Ratel's native OTLP telemetry, and pick the OTel backend the team already runs to export to, then write a proposal covering instrumentation, backend selection, and the dashboards that prove value. Use when mounting observability, asking where tracing goes or what to instrument/measure, turning on Ratel telemetry, choosing an OTel backend (Langfuse/LangSmith/collector/Ratel Cloud), designing dashboards, asking what proves Ratel's value, or `/ratel-observability-assessment`. Entry point of the funnel (reached from /ratel-assessment); hands off to /ratel-integrate for rollout. Writes one living markdown file to <repo>/.ratel/; does not edit code or call a backend API; skips when there's no agent surface.
+  Inspect an agent codebase to decide where tracing belongs, turn on Ratel's native OTLP telemetry, and pick the OTel backend the team already runs to export to, then write a proposal covering instrumentation, backend selection, and the dashboards that prove value. Use when mounting observability, asking where tracing goes or what to instrument/measure, turning on Ratel telemetry, choosing an OTel backend (Langfuse/LangSmith/collector/Ratel Cloud), designing dashboards, asking what proves Ratel's value, or `/ratel-observability-assessment`. Independent observability branch reached from /ratel-assessment; may point to /ratel-integrate when the user separately wants code integration. Writes one living markdown file to <repo>/.ratel/; does not edit code or call a backend API; skips when there's no agent surface.
 allowed-tools:
   - Bash
   - Read
@@ -96,7 +96,7 @@ List *which* dashboards and *why* each matters (one plain-English line per dashb
 
 ### Step 7 — Write the proposal
 
-Write to `<repo>/.ratel/ratel-observability-assessment.md` — a **single living file, not date-stamped**, so the follow-up [`/ratel-integrate`](../ratel-integrate/SKILL.md) run always reads a stable path. Create the `.ratel/` directory if it doesn't exist; ask the user to confirm the path if the repo already uses a different docs convention. Overwrite on re-run.
+Write to `<repo>/.ratel/ratel-observability-assessment.md` — a **single living file, not date-stamped**. Create the `.ratel/` directory if it doesn't exist; ask the user to confirm the path if the repo already uses a different docs convention. Overwrite on re-run.
 
 The proposal must contain, in this order:
 
@@ -106,20 +106,18 @@ The proposal must contain, in this order:
 4. **Instrumentation strategy** — how to turn on Ratel's native telemetry (which setup path from Step 5), plus the agent-level span/tag/attribute table and the session-boundary plan; call out either anti-pattern you found.
 5. **Recommended dashboards** — the agent-health group and, conditionally, the Ratel-value group from Step 6, each with its one-line "why".
 6. **Ratel angle** (conditional, only if Ratel is present or planned) — which findings map to which Ratel capability per `references/ratel-value-map.md`.
-7. **Recommended next step** — hand off to [`/ratel-integrate`](../ratel-integrate/SKILL.md), per the routing table below.
+7. **Recommended next step** — offer the relevant independent follow-up from the routing table below.
 
 Print the table of contents inline in the chat — seven bullets max — the export target, and the recommended next step. Do not paste the full proposal body into the chat; the file is the artifact.
 
-### Step 8 — Turn on telemetry, then hand off to /ratel-integrate
+### Step 8 — Offer independent next steps
 
 End the proposal and the inline summary with the route:
 
 | Situation | Route to |
 | --- | --- |
 | Turning on telemetry | [`references/native-telemetry-setup.md`](references/native-telemetry-setup.md) — the concrete TS + Python wiring (greenfield `configureTelemetry` / dual-export `ratelSpanProcessor`), content-capture opt-in, and the local trace stream |
-| Rolling Ratel out + proving it | [`/ratel-integrate`](../ratel-integrate/SKILL.md) — plans the rollout (direct SDK / Ratel Local / hybrid) and the A/B tied to these native-telemetry metrics |
-
-`/ratel-integrate` reads `.ratel/ratel-observability-assessment.md` as one of its inputs. Tell the user that.
+| Loading an agent's tools and skills through Ratel | [`/ratel-integrate`](../ratel-integrate/SKILL.md) — implements the SDK or framework-adapter wiring and verifies each agent's capability boundary; observability is not a prerequisite |
 
 ## Honest skip path
 
