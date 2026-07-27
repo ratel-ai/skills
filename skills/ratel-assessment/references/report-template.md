@@ -145,7 +145,7 @@ Northcrop's research agent is a Vercel AI SDK loop that exposes 41 tools to the 
 
 The agent runs in production (`README.md` describes a live customer surface) but there is no way for anyone outside the running process to observe what it does. Regressions across deploys are invisible; cost spikes are invisible; per-tool failure modes are invisible. None of the other findings in this report are independently verifiable without this loop closed.
 
-**Recommendation**: turn on telemetry via `/ratel-observability-assessment` before any other change in this report — Ratel's native OTLP instrumentation exported to whatever OTel backend the team runs (Langfuse / LangSmith / their own collector / Ratel Cloud, Coming Soon). Two-day landing window is typical.
+**Recommendation**: run `/ratel-observability-assessment` as an independent high-priority follow-up — export Ratel's native OTLP instrumentation to the OTel backend the team already runs. This improves measurement but does not gate code integration.
 
 **Ratel angle**: routes to `/ratel-observability-assessment` — and downstream, once data is flowing, that same skill builds the cost and retrieval-quality dashboards that will measure the rest of the report's recommendations.
 
@@ -157,9 +157,9 @@ The agent runs in production (`README.md` describes a live customer surface) but
 
 Every chat turn sends all 41 tool descriptions to the model. At ~140 tokens average × 41 tools, the tool catalog alone is ≈5,700 input tokens before any user content or conversation history. This is most of the input cost on a typical turn and a significant fraction of context budget on small models.
 
-**Recommendation**: pre-filter the tool list per turn so the model only sees the top-K (typically 8) most-relevant tools for the user's message. The full catalog remains addressable via a discovery surface.
+**Recommendation**: replace the full model-facing catalog with Ratel's stable capability tools and inject ranked recall for each user turn. Keep every authorized executable behind `invoke_tool`.
 
-**Ratel angle**: matches Ratel's hybrid capability retrieval + replace-mode pre-filter (shipped) — in-process ranking (BM25 by default, opt-in semantic and hybrid RRF, no vector DB) that pre-filters to the top-K per turn. Textbook fit for what Ratel was built for; expected input-token reduction is 50–85% on the catalog portion of the prompt.
+**Ratel angle**: matches Ratel's shipped capability funnel and per-turn recall — in-process ranking (BM25 by default, opt-in semantic and hybrid RRF, no vector DB) keeps the model-facing tool set stable while surfacing relevant tools and skills on demand.
 
 ### Bloated tool descriptions
 
@@ -243,7 +243,7 @@ The eval suite catches output regressions but cannot detect tool-selection regre
 
 ## Where Ratel fits
 
-Three findings in this report (tool sprawl, bloated descriptions, near-duplicates) are the textbook fit for Ratel's shipped surface: hybrid capability retrieval (BM25 by default, opt-in semantic and hybrid RRF, all in-process) with replace-mode pre-filter, paired with the Retrieval Quality dashboard. Once observability lands, the dashboard will show the input-token reduction directly and surface low top-hit scores for the descriptions that need rewriting.
+Three findings in this report (tool sprawl, bloated descriptions, near-duplicates) fit Ratel's shipped capability funnel and per-turn recall: BM25 by default, with opt-in semantic and hybrid retrieval, all in-process. The model keeps a stable capability-tool surface while relevant tools and skills arrive on demand; observability can measure the result independently.
 
 The ground-truth labeling finding (Eval / quality gates, Info) unlocks the Retrieval Quality dashboard's `recall@5` widget, which closes the measurement loop on the integration: not just "we sent fewer tokens" but "we sent the *right* tools." This is the partner-facing proof.
 
@@ -253,8 +253,8 @@ The roadmap entry for LLM-driven definition suggestions (Coming Soon) will event
 
 ## Recommended next steps
 
-- `/ratel-observability-assessment` — addresses *No observability wired* (Critical, Dimension 7). Required before any of the below can be measured.
-- `/ratel-integrate` — addresses *Tool sprawl on the chat turn*, *Bloated tool descriptions*, and *Near-duplicate tools* (all Major, Dimension 2). Pilot scope should be the `chat-turn` trace, A/B split via a feature flag.
+- `/ratel-observability-assessment` — addresses *No observability wired* (Critical, Dimension 7). Independent measurement follow-up; not a prerequisite for integration.
+- `/ratel-integrate` — addresses *Tool sprawl on the chat turn*, *Bloated tool descriptions*, and *Near-duplicate tools* (all Major, Dimension 2). Map the chat agent's exact tools and skills, then wire them through the supported SDK adapter.
 - `/ratel-decompose-prompt` — addresses *Monolithic system prompt mixing many responsibilities* (Major, Dimension 11). Extract the duplicated runbook and examples into retrievable skills.
 - `/ratel-tune-definitions` — addresses *Tool descriptions missing "when to use"* (Major, Dimension 12). Rewrite descriptions and tighten parameter names / enums for retrieval.
 - `/ratel-observability-assessment` — after the above land, build the Token Cost & Savings and Retrieval Quality dashboards to measure the integration's impact.

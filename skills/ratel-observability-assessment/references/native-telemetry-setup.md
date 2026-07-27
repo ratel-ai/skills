@@ -124,7 +124,7 @@ See [`vendor-detection.md`](vendor-detection.md) for how to detect which backend
 
 ## Before / after annotation (for A/B)
 
-To prove Ratel's value, the most valuable view is "agent on its full tool catalog" (baseline) vs "agent on Ratel's top-K" (Ratel arm). Add a low-cardinality span attribute / tag `feature_flag: "tool_pool=full"` vs `feature_flag: "tool_pool=ratel"` and run both arms in parallel; the Ratel-value dashboards pivot on it. `/ratel-integrate` plans this A/B against these native-telemetry metrics.
+To prove Ratel's value, the most valuable view is "agent on its full tool catalog" (baseline) vs "agent on Ratel's top-K" (Ratel arm). Add a low-cardinality span attribute / tag `feature_flag: "tool_pool=full"` vs `feature_flag: "tool_pool=ratel"` and run both arms in parallel; the Ratel-value dashboards pivot on it. Keep this measurement work separate from `/ratel-integrate`, which only implements capability loading.
 
 ## Scoring hooks (when ground truth is available)
 
