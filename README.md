@@ -25,7 +25,7 @@ Want a read on your agent first? The assessment is free and static — no setup:
 Run npx skills add ratel-ai/skills --all and use the skills to assess the agents in this codebase
 ```
 
-Ready to wire Ratel in? Go straight to the integration plan:
+Ready to wire Ratel in? Go straight to the code integration:
 
 ```text
 Run npx skills add ratel-ai/skills --all and use the skills to integrate Ratel in this project.

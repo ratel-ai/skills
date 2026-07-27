@@ -24,7 +24,7 @@
     "Architecture & orchestration": "Solid foundation — a single named agent, clean decomposition, sensible model use. No structural changes needed; spend the effort elsewhere.",
     "Context & tools": "The weak point, and the highest-leverage area. The 41-tool catalog and a ~4,200-token monolithic prompt dominate per-turn cost — see *Tool sprawl*, *Bloated tool descriptions*, *Near-duplicate tools*, and *Monolithic system prompt* below.",
     "Reliability & safety": "In good shape — the eval suite is the standout, but it checks outputs, not tool selection, so sprawl-driven mis-selection slips through (see *Eval suite covers tasks but not tool selection*).",
-    "Operations": "Flying blind. Nothing is traced and generations are uncapped — see *No observability wired* and *No max_tokens cap*. Close the tracing loop first; it makes every other recommendation measurable."
+    "Operations": "Flying blind. Nothing is traced and generations are uncapped — see *No observability wired* and *No max_tokens cap*. Close the tracing loop as an independent high-priority follow-up; it makes every other recommendation measurable."
   },
   "findings": [
     {
